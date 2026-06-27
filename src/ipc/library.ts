@@ -9,6 +9,7 @@ import type {
   PackageSelectionState,
   SelectionSummary,
   SearchHit,
+  DirNode,
 } from "../types/library";
 
 // 命令名与 src-tauri/src/lib.rs generate_handler 注册一致
@@ -36,6 +37,17 @@ export const ipc = {
     kind: string | null,
   ): Promise<SearchHit[]> {
     return invoke<SearchHit[]>("search_files", { query, kind });
+  },
+
+  // 目录树
+  async getDirectoryTree(libId: number): Promise<DirNode[]> {
+    return invoke<DirNode[]>("get_directory_tree", { libId });
+  },
+  async getDirectoryFiles(directoryId: number): Promise<FileNode[]> {
+    return invoke<FileNode[]>("get_directory_files", { directoryId });
+  },
+  async getSubtreeFiles(directoryId: number): Promise<FileNode[]> {
+    return invoke<FileNode[]>("get_subtree_files", { directoryId });
   },
 
   // 项目与勾选

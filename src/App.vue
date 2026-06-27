@@ -3,6 +3,7 @@ import { onMounted, ref, watch } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import TopBar from "./components/TopBar.vue";
 import CategoryTree from "./components/CategoryTree.vue";
+import DirectoryTree from "./components/DirectoryTree.vue";
 import PackageGrid from "./components/PackageGrid.vue";
 import PreviewPane from "./components/PreviewPane.vue";
 import SearchView from "./components/SearchView.vue";
@@ -12,17 +13,23 @@ import TypeSettings from "./components/TypeSettings.vue";
 import { useLibraryStore } from "./stores/libraryStore";
 import { useSelectionStore } from "./stores/selectionStore";
 import { useSearchStore } from "./stores/searchStore";
+import { useTreeStore } from "./stores/treeStore";
 
 const store = useLibraryStore();
 const selStore = useSelectionStore();
 const searchStore = useSearchStore();
+const treeStore = useTreeStore();
 const showExport = ref(false);
 const showDedup = ref(false);
 const showTypes = ref(false);
 
 onMounted(async () => {
   await store.loadLibraries();
-  if (store.currentLibId !== null) await store.loadCategories();
+  if (store.currentLibId !== null) {
+    await store.loadCategories();
+    // 加载目录树数据
+    await treeStore.loadTree(store.currentLibId);
+  }
   await selStore.loadProjects();
   if (store.currentCategoryId !== null) {
     await selStore.refreshPkgStates(store.currentCategoryId);
@@ -39,6 +46,13 @@ onMounted(async () => {
     // 若当前在某个包内，则刷新该包文件列表，使新增文件立即可见
     if (store.currentPkgId !== null) {
       await store.selectPackage(store.currentPkgId);
+    }
+    // 同步刷新目录树
+    if (store.currentLibId !== null) {
+      await treeStore.loadTree(store.currentLibId);
+      if (treeStore.currentDirId !== null) {
+        await treeStore.selectDirectory(treeStore.currentDirId);
+      }
     }
   });
 
@@ -77,8 +91,9 @@ async function onOpenExport() {
   <div class="h-full flex flex-col bg-slate-900 text-slate-100">
     <TopBar @dedup="showDedup = true" @types="showTypes = true" />
     <div class="flex-1 flex overflow-hidden">
-      <CategoryTree />
-      <SearchView v-if="searchStore.active && store.currentPkgId === null" />
+      <CategoryTree v-if="treeStore.viewMode === 'category'" />
+      <DirectoryTree v-else />
+      <SearchView v-if="searchStore.active && store.currentPkgId === null && treeStore.currentDirId === null" />
       <PackageGrid v-else />
       <PreviewPane @export="onOpenExport" />
     </div>

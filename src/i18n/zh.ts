@@ -39,6 +39,12 @@ export default {
     noCategory: "无分类。请先扫描库。",
     pkgCount: "{n} 包 · {f} 文件 · {b}",
   },
+  tree: {
+    viewCategory: "两级视图",
+    viewTree: "树视图",
+    noDir: "无目录。请先扫描库。",
+    selectDir: "选择左侧目录查看文件",
+  },
   packageGrid: {
     packageCount: "{n} 个素材包",
     hasZip: "含压缩包",
@@ -47,6 +53,7 @@ export default {
   fileGrid: {
     noFiles: "该包没有文件",
     backToPackages: "返回包列表",
+    backToTree: "返回目录树",
     backToResults: "返回搜索结果",
     backToBrowsing: "返回浏览",
     locatingTo: "定位到：{name}",

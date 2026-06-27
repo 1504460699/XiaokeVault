@@ -39,6 +39,12 @@ export default {
     noCategory: "No categories. Scan a library first.",
     pkgCount: "{n} pkgs · {f} files · {b}",
   },
+  tree: {
+    viewCategory: "Two-level",
+    viewTree: "Tree",
+    noDir: "No directories. Scan a library first.",
+    selectDir: "Select a directory on the left",
+  },
   packageGrid: {
     packageCount: "{n} packages",
     hasZip: "has zip",
@@ -47,6 +53,7 @@ export default {
   fileGrid: {
     noFiles: "No files in this package",
     backToPackages: "Back to packages",
+    backToTree: "Back to tree",
     backToResults: "Back to results",
     backToBrowsing: "Back to browsing",
     locatingTo: "Locating: {name}",

@@ -2,6 +2,7 @@
 import { storeToRefs } from "pinia";
 import { useI18n } from "vue-i18n";
 import { useLibraryStore } from "../stores/libraryStore";
+import { useTreeStore } from "../stores/treeStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { useSearchStore } from "../stores/searchStore";
 import FileGrid from "./FileGrid.vue";
@@ -9,9 +10,11 @@ import FileGrid from "./FileGrid.vue";
 const { t } = useI18n();
 
 const store = useLibraryStore();
+const treeStore = useTreeStore();
 const sel = useSelectionStore();
 const search = useSearchStore();
 const { currentPkgId, packages } = storeToRefs(store);
+const { currentDirId } = storeToRefs(treeStore);
 const { pkgStates } = storeToRefs(sel);
 const { locateFileId } = storeToRefs(search);
 
@@ -39,7 +42,26 @@ async function onTogglePkg(e: Event, pkgId: number) {
 
 <template>
   <main class="flex-1 overflow-hidden flex flex-col">
-    <FileGrid v-if="currentPkgId !== null" :locate-file-id="locateFileId" @located="onLocated" />
+    <!-- 树视图：选中目录时显示文件网格 -->
+    <FileGrid
+      v-if="treeStore.viewMode === 'tree' && currentDirId !== null"
+      :locate-file-id="locateFileId"
+      @located="onLocated"
+    />
+    <!-- 树视图未选目录时的占位 -->
+    <div
+      v-else-if="treeStore.viewMode === 'tree'"
+      class="flex-1 flex items-center justify-center text-slate-500 text-sm"
+    >
+      {{ t("tree.selectDir") }}
+    </div>
+    <!-- 两级视图：包内文件 -->
+    <FileGrid
+      v-else-if="currentPkgId !== null"
+      :locate-file-id="locateFileId"
+      @located="onLocated"
+    />
+    <!-- 两级视图：包网格 -->
     <template v-else>
       <div
         class="px-4 py-2 text-sm text-slate-400 border-b border-slate-700 shrink-0"

@@ -4,6 +4,7 @@ import { storeToRefs } from "pinia";
 import { useI18n } from "vue-i18n";
 import { useVirtualizer } from "@tanstack/vue-virtual";
 import { useLibraryStore } from "../stores/libraryStore";
+import { useTreeStore } from "../stores/treeStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { useSearchStore } from "../stores/searchStore";
 import { viewerForKind, iconForViewer, canShowThumb } from "../utils/viewer";
@@ -17,15 +18,41 @@ const props = defineProps<{ locateFileId?: number | null }>();
 const emit = defineEmits<{ located: [] }>();
 
 const store = useLibraryStore();
+const treeStore = useTreeStore();
 const sel = useSelectionStore();
 const search = useSearchStore();
-const { files, currentPackage } = storeToRefs(store);
+const { files: libFiles, currentPackage } = storeToRefs(store);
+const { files: treeFiles } = storeToRefs(treeStore);
 const { pkgStates, selectedFileIds } = storeToRefs(sel);
 
-// 返回：搜索模式下回搜索结果，否则回包列表
+// 文件数据源：树视图用 treeStore.files，否则用 libraryStore.files
+const files = computed<FileNode[]>(() =>
+  treeStore.viewMode === "tree" ? treeFiles.value : libFiles.value,
+);
+
+// 当前位置名称：树视图取目录名，否则取包名
+const currentLocationName = computed(() => {
+  if (treeStore.viewMode === "tree") {
+    // 在树里找到当前目录名
+    const find = (nodes: typeof treeStore.tree): string | null => {
+      for (const n of nodes) {
+        if (n.id === treeStore.currentDirId) return n.name;
+        const c = find(n.children);
+        if (c) return c;
+      }
+      return null;
+    };
+    return find(treeStore.tree);
+  }
+  return currentPackage.value?.name ?? null;
+});
+
+// 返回：搜索模式下回搜索结果，树视图回目录树（清空选中），否则回包列表
 function onBack() {
   if (search.active) {
-    store.backToPackages(); // currentPkgId=null → SearchView 显示
+    store.backToPackages();
+  } else if (treeStore.viewMode === "tree") {
+    treeStore.clearFiles();
   } else {
     store.backToPackages();
   }
@@ -122,9 +149,9 @@ async function onToggleFile(e: Event, f: FileNode) {
       class="px-4 py-2 text-sm text-slate-400 border-b border-slate-700 shrink-0 flex items-center gap-2 flex-wrap"
     >
       <button class="text-sky-400 hover:underline" @click="onBack()">
-        ← {{ search.active ? t('fileGrid.backToResults') : t('fileGrid.backToPackages') }}
+        ← {{ search.active ? t('fileGrid.backToResults') : (treeStore.viewMode === 'tree' ? t('fileGrid.backToTree') : t('fileGrid.backToPackages')) }}
       </button>
-      <span>/ {{ currentPackage?.name }}</span>
+      <span>/ {{ currentLocationName }}</span>
       <span class="text-slate-500">
         {{ t('fileGrid.fileCount', { shown: filteredFiles.length, total: files.length }) }}
       </span>
