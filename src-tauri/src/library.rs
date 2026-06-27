@@ -114,11 +114,11 @@ pub async fn search_files(
     Ok(rows
         .into_iter()
         .map(|(id, name, ext, kind, bytes, rel, pkg_id, dir_id, pkg_path, dir_path, pkg_name, cat_name, root)| {
-            // 拼绝对路径：树视图=库根/dir_path/rel；两级视图=pkg_path/rel
+            // 拼绝对路径：树视图=库根/dir_path/rel；两级视图=pkg_path/rel（统一正斜杠）
             let abs_path = if let (Some(dp), Some(rt)) = (dir_path, &root) {
-                format!("{}/{}", rt, dp) + "/" + &rel
+                format!("{}/{}/{}", rt.replace('\\', "/"), dp, rel)
             } else {
-                format!("{}/{}", pkg_path.unwrap_or_default(), rel)
+                format!("{}/{}", pkg_path.unwrap_or_default().replace('\\', "/"), rel)
             };
             SearchHit {
                 id,

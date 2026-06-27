@@ -8,8 +8,8 @@ const props = defineProps<{ node: DirNode }>();
 const store = useTreeStore();
 const { currentDirId } = storeToRefs(store);
 
-// 默认只展开第一层（depth=0）
-const expanded = ref(props.node.depth === 0);
+// 默认展开顶层（虚拟根 depth=-1 和第一层 depth=0）
+const expanded = ref(props.node.depth <= 0);
 
 function fmtBytes(b: number): string {
   if (b > 1e9) return (b / 1e9).toFixed(1) + " GB";
@@ -19,7 +19,8 @@ function fmtBytes(b: number): string {
 }
 
 function onClickName() {
-  // 点任何文件夹都显示其内容（递归包含子目录的文件）
+  // 虚拟根节点（库名，id<0）不触发查询；真实目录显示其内容
+  if (props.node.id < 0) return;
   store.selectDirectory(props.node.id);
 }
 </script>

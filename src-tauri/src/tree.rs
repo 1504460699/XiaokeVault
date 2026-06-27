@@ -105,7 +105,7 @@ pub async fn get_directory_files(
             ext,
             kind,
             bytes,
-            abs_path: format!("{}/{}/{}", root, dir_path, rel),
+            abs_path: format!("{}/{}/{}", root.replace('\\', "/"), dir_path, rel),
         })
         .collect())
 }
@@ -142,7 +142,7 @@ pub async fn get_subtree_files(
             ext,
             kind,
             bytes,
-            abs_path: format!("{}/{}/{}", root, dir_path, rel),
+            abs_path: format!("{}/{}/{}", root.replace('\\', "/"), dir_path, rel),
         })
         .collect())
 }

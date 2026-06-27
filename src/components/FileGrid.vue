@@ -47,10 +47,12 @@ const currentLocationName = computed(() => {
   return currentPackage.value?.name ?? null;
 });
 
-// 返回：搜索模式下回搜索结果，树视图回目录树（清空选中），否则回包列表
+// 返回：搜索模式下回搜索结果（清空当前选中），否则回目录树/包列表
 function onBack() {
   if (search.active) {
+    // 搜索定位后返回：清空包/目录选中，恢复搜索结果视图
     store.backToPackages();
+    treeStore.clearFiles();
   } else if (treeStore.viewMode === "tree") {
     treeStore.clearFiles();
   } else {

@@ -32,9 +32,9 @@ pub async fn get_thumbnail(file_id: i64, pool: State<'_, SqlitePool>) -> Result<
     .await?;
 
     let (dir_id, dir_path, pkg_path, rel, bytes, ext) = row;
-    // 拼绝对路径
+    // 拼绝对路径，统一正斜杠（convertFileSrc/asset protocol 需要规范路径）
     let src = if let Some(dp) = dir_path {
-        // 树视图：需库根 + directory.path
+        // 树视图：库根 + directory.path + rel
         let (root,): (String,) = sqlx::query_as(
             "SELECT l.root_path FROM libraries l
              JOIN directories d ON d.library_id=l.id WHERE d.id=?",
@@ -42,16 +42,16 @@ pub async fn get_thumbnail(file_id: i64, pool: State<'_, SqlitePool>) -> Result<
         .bind(dir_id.unwrap_or(0))
         .fetch_one(&*pool)
         .await?;
-        PathBuf::from(&root).join(dp).join(&rel)
+        format!("{}/{}/{}", root.replace('\\', "/"), dp, rel)
     } else {
         // 两级视图：package.path 已是绝对路径
-        PathBuf::from(pkg_path.unwrap_or_default()).join(&rel)
+        format!("{}/{}", pkg_path.unwrap_or_default().replace('\\', "/"), rel)
     };
 
     // 小图直接返回原路径
     if bytes < LARGE_BYTES {
         return Ok(ThumbResult {
-            path: src.to_string_lossy().to_string(),
+            path: src.replace('\\', "/"),
             is_thumb: false,
         });
     }
@@ -65,22 +65,23 @@ pub async fn get_thumbnail(file_id: i64, pool: State<'_, SqlitePool>) -> Result<
     // 缓存命中
     if thumb_path.exists() {
         return Ok(ThumbResult {
-            path: thumb_path.to_string_lossy().to_string(),
+            path: thumb_path.to_string_lossy().replace('\\', "/"),
             is_thumb: true,
         });
     }
 
     // 生成缩略图
     let _ = ext; // 扩展名 image crate 自动识别
-    match generate_thumb(&src, &thumb_path) {
+    let src_path = std::path::Path::new(&src);
+    match generate_thumb(src_path, &thumb_path) {
         Ok(()) => Ok(ThumbResult {
-            path: thumb_path.to_string_lossy().to_string(),
+            path: thumb_path.to_string_lossy().replace('\\', "/"),
             is_thumb: true,
         }),
         Err(_) => {
             // 生成失败则降级返回原图
             Ok(ThumbResult {
-                path: src.to_string_lossy().to_string(),
+                path: src.replace('\\', "/"),
                 is_thumb: false,
             })
         }
