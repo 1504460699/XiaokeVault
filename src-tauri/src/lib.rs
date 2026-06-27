@@ -1,5 +1,6 @@
 mod asset_types;
 mod db;
+mod dedup;
 mod exporter;
 mod indexer;
 mod library;
@@ -50,7 +51,10 @@ pub fn run() {
             selection::clear_selections,
             selection::get_category_selection_states,
             selection::get_selection_summary,
-            exporter::run_export
+            exporter::run_export,
+            dedup::run_dedup,
+            dedup::get_duplicate_groups,
+            dedup::remove_duplicate
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
