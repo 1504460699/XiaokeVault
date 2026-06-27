@@ -321,8 +321,7 @@ pub async fn get_duplicate_groups(pool: State<'_, SqlitePool>) -> Result<Vec<Dup
 /// backup_root: 用户指定的备份根目录；为空则用 app data/trash。
 fn move_to_backup(src: &std::path::Path, abs_pkg: &str, rel: &str, backup_root: &str) -> Result<std::path::PathBuf, String> {
     let mut base = if backup_root.is_empty() {
-        let mut t = dirs::data_dir().ok_or("no data dir")?;
-        t.push("com.xiaoke.tauri-app");
+        let mut t = crate::db::data_root();
         t.push("trash");
         t
     } else {

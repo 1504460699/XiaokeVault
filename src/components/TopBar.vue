@@ -8,7 +8,7 @@ import WindowControls from "./WindowControls.vue";
 defineEmits<{ dedup: []; types: [] }>();
 
 const store = useLibraryStore();
-const { libraries, currentLibId, scanning, scanReport, error } = storeToRefs(store);
+const { libraries, currentLibId, scanning, autoScanning, scanReport, error } = storeToRefs(store);
 const search = useSearchStore();
 
 async function onScan() {
@@ -43,7 +43,7 @@ function onLibChange(e: Event) {
     class="flex items-center gap-3 px-4 h-12 bg-slate-800 border-b border-slate-700 shrink-0"
     data-tauri-drag-region
   >
-    <span class="font-bold text-sky-400">XiaokeTools</span>
+    <span class="font-bold text-sky-400">XiaokeVault</span>
     <select
       class="bg-slate-700 text-slate-100 px-2 py-1 rounded text-sm"
       :value="currentLibId ?? ''"
@@ -88,6 +88,7 @@ function onLibChange(e: Event) {
       + 添加库
     </button>
     <div class="ml-auto text-xs text-slate-400 flex items-center gap-2">
+      <span v-if="autoScanning" class="text-sky-400 animate-pulse">⏳ 自动扫描中…</span>
       <span v-if="scanReport"
         >上次扫描：{{ scanReport.total_files }} 文件 /
         {{ Math.round(scanReport.duration_ms / 1000) }}s</span

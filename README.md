@@ -1,7 +1,47 @@
-# Tauri + Vue + TypeScript
+# XiaokeVault · 小克宝库
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+> 游戏素材资源管理器 —— 把一大堆下载的资源，整理成可检索、可预览、可打包导出的宝库。
 
-## Recommended IDE Setup
+## 这是什么
 
-- [VS Code](https://code.visualstudio.com/) + [Vue - Official](https://marketplace.visualstudio.com/items?itemName=Vue.volar) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+下载的游戏素材往往散乱在成百上千个目录里（压缩包 + 解压目录并存、命名混乱、重复备份）。
+XiaokeVault 解决的就是这件事：
+
+- **一键扫描建库**：把整个资源目录（按 `分类/包/文件` 三级结构）索引进 SQLite，4.2 万文件约 5 秒。
+- **多格式预览**：图片（可缩放）、SVG、GIF、音频、字体、文本、3D 模型（glb/gltf/obj/dae/fbx/blend）。
+- **混合粒度勾选**：可整包勾选，也可勾选包内单个文件。
+- **按项目打包导出**：选中素材 → 导出成干净目录结构 + `CREDITS.txt` + `manifest.json` + zip。
+- **去重**：检测「压缩包 + 解压目录」重复、疑似备份包；可软删除到自定义备份目录。
+- **类型可扩充**：内置 13 类素材类型，可在「类型」面板里增删改，无需改代码。
+- **全局搜索**：跨所有包按文件名搜索。
+- **自动增量扫描**：监听资源目录变化，新增/修改文件自动入库（3 秒防抖）。
+
+## 技术栈
+
+- **后端**：Rust + Tauri 2（sqlx / walkdir+rayon / notify / image / zip）
+- **前端**：Vue 3 + Pinia + Tailwind v4 + @tanstack/vue-virtual + Three.js
+
+## 开发
+
+```bash
+pnpm install
+pnpm tauri dev      # 开发
+pnpm tauri build    # 打包
+```
+
+## 目录结构约定
+
+资源库根目录下：
+
+```
+<根>/
+├─ 01_2D像素/        ← 一级目录 = 分类
+│  └─ 素材包A/       ← 二级目录 = 包
+│     └─ ...文件
+├─ 13_3D模型/
+└─ _下载脚本/        ← 下划线开头的目录会被跳过
+```
+
+## 许可证
+
+私有项目，暂不开源。

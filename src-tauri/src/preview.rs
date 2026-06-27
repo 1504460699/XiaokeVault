@@ -37,8 +37,7 @@ pub async fn get_thumbnail(file_id: i64, pool: State<'_, SqlitePool>) -> Result<
     }
 
     // 大图：生成缩略图
-    let mut cache = dirs::data_dir().ok_or("no data dir")?;
-    cache.push("com.xiaoke.tauri-app");
+    let mut cache = crate::db::data_root();
     cache.push("thumbs");
     std::fs::create_dir_all(&cache).map_err(|e| e.to_string())?;
     let thumb_path = cache.join(format!("{}.webp", file_id));
@@ -105,8 +104,7 @@ fn find_blender() -> Option<PathBuf> {
 /// 返回 blend 转换后的 glb 路径（带缓存）
 #[tauri::command]
 pub async fn get_model_glb(blend_path: String) -> Result<ModelPath, String> {
-    let mut cache = dirs::data_dir().ok_or("no data dir")?;
-    cache.push("com.xiaoke.tauri-app");
+    let mut cache = crate::db::data_root();
     cache.push("glb_cache");
     std::fs::create_dir_all(&cache).map_err(|e| e.to_string())?;
     let stem = std::path::Path::new(&blend_path)

@@ -9,32 +9,55 @@ use tauri::{AppHandle, Emitter, Manager};
 // 防抖间隔：最后一次文件变化后等 3 秒再触发扫描
 const DEBOUNCE: Duration = Duration::from_secs(3);
 
-/// 启动库根目录监听。返回 watcher（需保活）。
+/// 启动库根目录监听。返回 watcher（调用方必须保活，否则监听立即停止）。
 pub fn start_watcher(
     app: AppHandle,
     pool: SqlitePool,
     lib_id: i64,
     root: PathBuf,
 ) -> notify::Result<RecommendedWatcher> {
+    log::info!("[watcher] start_watcher 入口，lib_id={}, root={}", lib_id, root.display());
+
     let pending = Arc::new(Mutex::new(Option::<Instant>::None));
     let pending_w = pending.clone();
 
     let watcher = RecommendedWatcher::new(
         move |res: notify::Result<notify::Event>| {
-            if let Ok(ev) = res {
-                let relevant = matches!(
-                    ev.kind,
-                    EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_)
-                );
-                if !relevant {
-                    return;
+            match res {
+                Ok(ev) => {
+                    let relevant = matches!(
+                        ev.kind,
+                        EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_)
+                    );
+                    if !relevant {
+                        return;
+                    }
+                    // 仅记录关心的路径，避免日志爆炸
+                    let paths: Vec<String> = ev
+                        .paths
+                        .iter()
+                        .map(|p| p.file_name().and_then(|n| n.to_str()).unwrap_or("?").to_string())
+                        .collect();
+                    log::debug!("[watcher] 捕获事件 {:?} -> {:?}", ev.kind, paths);
+                    let mut p = pending_w.lock().unwrap();
+                    *p = Some(Instant::now());
                 }
-                let mut p = pending_w.lock().unwrap();
-                *p = Some(Instant::now());
+                Err(e) => {
+                    log::warn!("[watcher] 监听错误：{e}");
+                }
             }
         },
         Config::default(),
     )?;
+
+    let mut w = watcher;
+    match w.watch(Path::new(&root), RecursiveMode::Recursive) {
+        Ok(()) => log::info!("[watcher] watch() 注册成功"),
+        Err(e) => {
+            log::error!("[watcher] watch() 注册失败：{e}");
+            return Err(e);
+        }
+    }
 
     let pending2 = pending.clone();
     let app2 = app.clone();
@@ -47,6 +70,7 @@ pub fn start_watcher(
     std::thread::spawn(move || loop {
         std::thread::sleep(Duration::from_millis(500));
         if stopped2.load(Ordering::SeqCst) {
+            log::info!("[watcher] 轮询线程退出");
             break;
         }
         let should_scan = {
@@ -63,6 +87,7 @@ pub fn start_watcher(
             }
         };
         if should_scan {
+            log::info!("[watcher] 防抖结束，触发增量扫描");
             let _ = app2.emit("library://auto-scanning", ());
             // 用 tauri 的 async runtime 执行增量扫描
             let app3 = app2.clone();
@@ -71,9 +96,17 @@ pub fn start_watcher(
             tauri::async_runtime::spawn(async move {
                 match crate::indexer::scan_into(&pool3, lib_id, &root3).await {
                     Ok(report) => {
+                        log::info!(
+                            "[watcher] 增量扫描完成：新增 {} / 更新 {} / 删除 {} / 耗时 {}ms",
+                            report.new,
+                            report.updated,
+                            report.deleted,
+                            report.duration_ms
+                        );
                         let _ = app3.emit("library://auto-scanned", &report);
                     }
                     Err(e) => {
+                        log::error!("[watcher] 增量扫描失败：{e}");
                         let _ = app3.emit("library://auto-scan-error", e.to_string());
                     }
                 }
@@ -81,7 +114,5 @@ pub fn start_watcher(
         }
     });
 
-    let mut w = watcher;
-    w.watch(Path::new(&root), RecursiveMode::Recursive)?;
     Ok(w)
 }

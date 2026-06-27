@@ -18,6 +18,7 @@ export const useLibraryStore = defineStore("library", () => {
   const currentPkgId = ref<number | null>(null);
   const files = ref<FileNode[]>([]);
   const scanning = ref(false);
+  const autoScanning = ref(false);
   const scanReport = ref<ScanReport | null>(null);
   const error = ref<string | null>(null);
 
@@ -106,6 +107,7 @@ export const useLibraryStore = defineStore("library", () => {
     currentPackage,
     files,
     scanning,
+    autoScanning,
     scanReport,
     error,
     loadLibraries,

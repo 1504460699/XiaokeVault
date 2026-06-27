@@ -29,12 +29,22 @@ onMounted(async () => {
   }
   await selStore.refreshSummary();
 
-  // 监听自动增量扫描完成事件，刷新分类列表
+  // 监听自动增量扫描完成事件，刷新分类/包/文件列表
   await listen("library://auto-scanned", async () => {
+    store.autoScanning = false;
     await store.loadCategories();
     if (store.currentCategoryId !== null) {
       await store.loadPackages();
     }
+    // 若当前在某个包内，则刷新该包文件列表，使新增文件立即可见
+    if (store.currentPkgId !== null) {
+      await store.selectPackage(store.currentPkgId);
+    }
+  });
+
+  // 监听自动扫描开始事件（仅用于状态提示）
+  await listen("library://auto-scanning", () => {
+    store.autoScanning = true;
   });
 });
 

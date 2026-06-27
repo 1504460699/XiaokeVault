@@ -46,12 +46,24 @@ pub fn run() {
                         .unwrap_or((0, String::new()))
                 });
                 if res.0 != 0 {
-                    let _ = watcher::start_watcher(
+                    match watcher::start_watcher(
                         app_handle,
                         pool.clone(),
                         res.0,
-                        std::path::PathBuf::from(res.1),
-                    );
+                        std::path::PathBuf::from(&res.1),
+                    ) {
+                        Ok(w) => {
+                            // 关键：必须 manage 保活整个应用生命周期，
+                            // 否则 RecommendedWatcher 被 drop 后 OS 级文件监听立即停止。
+                            app.manage(w);
+                            log::info!("[watcher] 已启动，监听目录：{}", res.1);
+                        }
+                        Err(e) => {
+                            log::error!("[watcher] 启动失败：{e}");
+                        }
+                    }
+                } else {
+                    log::info!("[watcher] 未发现已有库，跳过自动监听");
                 }
             }
             app.manage(pool);
