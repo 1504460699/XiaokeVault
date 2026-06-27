@@ -149,10 +149,18 @@ pub async fn run_dedup(lib_id: i64, pool: State<'_, SqlitePool>) -> Result<Dedup
         let cat_pkgs: Vec<(i64, String, i64)> = sqlx::query_as(
             "SELECT id, name, file_count FROM packages WHERE category_id=? ORDER BY name")
             .bind(cat_id).fetch_all(&*pool).await.map_err(|e| e.to_string())?;
+        // 预加载已忽略的包对集合
+        let dismissed: Vec<(i64, i64)> = sqlx::query_as(
+            "SELECT package_a, package_b FROM dismissed_pairs")
+            .fetch_all(&*pool).await.map_err(|e| e.to_string())?;
+        let dismissed_set: std::collections::HashSet<(i64, i64)> = dismissed.into_iter().collect();
         for i in 0..cat_pkgs.len() {
             for j in (i + 1)..cat_pkgs.len() {
                 let (id_a, name_a, fc_a) = &cat_pkgs[i];
                 let (id_b, name_b, fc_b) = &cat_pkgs[j];
+                // 跳过已忽略的包对
+                let key = if id_a < id_b { (*id_a, *id_b) } else { (*id_b, *id_a) };
+                if dismissed_set.contains(&key) { continue; }
                 let na = backup_norm(name_a);
                 let nb = backup_norm(name_b);
                 if na.len() < 4 || nb.len() < 4 { continue; }
@@ -232,12 +240,29 @@ fn common_prefix_ratio(a: &str, b: &str) -> f64 {
     common as f64 / min_len as f64
 }
 
-/// 关闭/忽略一个重复组（人工已确认，删除该组记录，不再提醒）
+/// 关闭/忽略一个重复组（人工已确认，记录包对，删除该组记录，不再提醒）
 #[tauri::command]
 pub async fn dismiss_duplicate_group(
     group_id: i64,
     pool: State<'_, SqlitePool>,
 ) -> Result<(), String> {
+    let now = chrono::Utc::now().timestamp();
+    // 取该组的所有 package_id 成员，两两记入 dismissed_pairs
+    let pks: Vec<i64> = sqlx::query_scalar(
+        "SELECT DISTINCT package_id FROM duplicate_members WHERE group_id=? AND package_id IS NOT NULL",
+    )
+    .bind(group_id)
+    .fetch_all(&*pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    for i in 0..pks.len() {
+        for j in (i + 1)..pks.len() {
+            let (a, b) = if pks[i] < pks[j] { (pks[i], pks[j]) } else { (pks[j], pks[i]) };
+            sqlx::query("INSERT OR IGNORE INTO dismissed_pairs(package_a,package_b,created_at) VALUES(?,?,?)")
+                .bind(a).bind(b).bind(now).execute(&*pool).await
+                .map_err(|e| e.to_string())?;
+        }
+    }
     sqlx::query("DELETE FROM duplicate_members WHERE group_id=?")
         .bind(group_id)
         .execute(&*pool)

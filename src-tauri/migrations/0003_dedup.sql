@@ -14,3 +14,12 @@ CREATE TABLE IF NOT EXISTS duplicate_members (
     UNIQUE(group_id, file_id, package_id)
 );
 CREATE INDEX IF NOT EXISTS idx_dup_members_group ON duplicate_members(group_id);
+
+-- 人工已确认（忽略/保留）的包对，重新检测时跳过
+CREATE TABLE IF NOT EXISTS dismissed_pairs (
+    id           INTEGER PRIMARY KEY,
+    package_a    INTEGER NOT NULL,
+    package_b    INTEGER NOT NULL,
+    created_at   INTEGER NOT NULL,
+    UNIQUE(package_a, package_b)
+);
