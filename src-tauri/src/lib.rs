@@ -1,8 +1,10 @@
 mod asset_types;
 mod db;
+mod exporter;
 mod indexer;
 mod library;
 mod scanner;
+mod selection;
 use tauri::Manager;
 use tauri_plugin_log::{Target, TargetKind};
 
@@ -41,7 +43,13 @@ pub fn run() {
             library::scan_library_full,
             library::get_categories,
             library::get_packages,
-            library::get_package_files
+            library::get_package_files,
+            selection::create_project,
+            selection::list_projects,
+            selection::set_selection,
+            selection::get_category_selection_states,
+            selection::get_selection_summary,
+            exporter::run_export
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
