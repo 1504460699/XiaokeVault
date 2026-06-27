@@ -1,5 +1,9 @@
 # XiaokeVault · 笑客宝库
 
+![License: MIT](https://img.shields.io/badge/License-MIT-skyblue.svg)
+![Platform: Windows](https://img.shields.io/badge/Platform-Windows-slate.svg)
+![Built with Tauri](https://img.shields.io/badge/Built%20with-Tauri-orange.svg)
+
 > 游戏素材资源管理器 —— 把一大堆下载的资源，整理成可检索、可预览、可打包导出的宝库。
 
 ## 这是什么
@@ -44,4 +48,4 @@ pnpm tauri build    # 打包
 
 ## 许可证
 
-私有项目，暂不开源。
+本项目基于 [MIT License](LICENSE) 开源，可自由使用、修改和分发（含商用），请保留版权声明。
