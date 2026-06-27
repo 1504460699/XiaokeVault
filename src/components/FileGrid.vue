@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, ref } from "vue";
 import { storeToRefs } from "pinia";
 import { useVirtualizer } from "@tanstack/vue-virtual";
 import { useLibraryStore } from "../stores/libraryStore";
@@ -25,29 +25,19 @@ const rows = computed<FileNode[][]>(() => {
 
 const parentRef = ref<HTMLElement | null>(null);
 
-// 行数用 ref 维护，files 变化时更新（vue-virtual count 需纯数字）
-const rowCount = ref(0);
-const stop = watch(
-  () => files.value.length,
-  (n) => {
-    rowCount.value = Math.ceil(n / COLS);
-  },
-  { immediate: true },
+// virtualizer 用响应式 options：count 变化时自动重建
+const virtualizer = useVirtualizer(
+  computed(() => ({
+    count: Math.ceil(files.value.length / COLS),
+    getScrollElement: () => parentRef.value,
+    estimateSize: () => ROW_H + GAP,
+    overscan: 4,
+  })),
 );
 
-const virtualizer = useVirtualizer({
-  count: rowCount.value,
-  getScrollElement: () => parentRef.value,
-  estimateSize: () => ROW_H + GAP,
-  overscan: 4,
-});
-
-// 文件列表切换包时重建虚拟列表
-watch(rowCount, () => {
-  virtualizer.value.measure();
-});
-
-void stop;
+// 响应式提取虚拟项和总高度
+const virtualItems = computed(() => virtualizer.value.getVirtualItems());
+const totalSize = computed(() => virtualizer.value.getTotalSize());
 
 function isImage(f: FileNode): boolean {
   return f.kind === "image";
@@ -68,12 +58,12 @@ function isImage(f: FileNode): boolean {
     <div ref="parentRef" class="flex-1 overflow-auto p-3">
       <div
         :style="{
-          height: `${virtualizer.getTotalSize()}px`,
+          height: `${totalSize}px`,
           position: 'relative',
         }"
       >
         <div
-          v-for="vRow in virtualizer.getVirtualItems()"
+          v-for="vRow in virtualItems"
           :key="vRow.index"
           :style="{
             position: 'absolute',

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { storeToRefs } from "pinia";
+import { open } from "@tauri-apps/plugin-dialog";
 import { useLibraryStore } from "../stores/libraryStore";
 
 const store = useLibraryStore();
@@ -10,9 +11,13 @@ async function onScan() {
 }
 
 async function onAddLibrary() {
-  const rootPath = window.prompt("输入素材库根目录（如 D:\\Xiaoke\\GameAssets）：");
-  if (!rootPath) return;
-  const name = window.prompt("输入库名称：", "GameAssets");
+  // 原生文件夹选择对话框
+  const selected = await open({ directory: true, multiple: false, title: "选择素材库根目录" });
+  if (!selected || Array.isArray(selected)) return;
+  const rootPath = selected;
+  // 默认库名 = 目录名，用户可改
+  const defaultName = rootPath.replace(/\\/g, "/").split("/").filter(Boolean).pop() ?? "GameAssets";
+  const name = window.prompt("输入库名称：", defaultName);
   if (!name) return;
   try {
     await store.addLibrary(name, rootPath);
