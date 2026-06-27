@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { getFileUrl } from "../../ipc/fileUrl";
 import type { FileNode } from "../../types/library";
@@ -14,7 +14,18 @@ const dragging = ref(false);
 let lastX = 0;
 let lastY = 0;
 
-const url = getFileUrl(props.file);
+// url 用 computed 跟随 props.file 变化，切换文件时立即更新
+const url = computed(() => getFileUrl(props.file));
+
+// 切换文件时重置缩放/平移状态
+watch(
+  () => props.file.id,
+  () => {
+    scale.value = 1;
+    x.value = 0;
+    y.value = 0;
+  },
+);
 
 function onWheel(e: WheelEvent) {
   e.preventDefault();
