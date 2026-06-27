@@ -103,6 +103,12 @@ pub fn start_watcher(
                             report.deleted,
                             report.duration_ms
                         );
+                        // 同步刷新目录树（如实反映目录增删改）
+                        if let Err(e) =
+                            crate::indexer::scan_tree_into(&pool3, lib_id, &root3).await
+                        {
+                            log::warn!("[watcher] 目录树同步失败：{e}");
+                        }
                         let _ = app3.emit("library://auto-scanned", &report);
                     }
                     Err(e) => {

@@ -90,5 +90,8 @@ pub async fn migrate(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     sqlx::query(include_str!("../migrations/0003_dedup.sql"))
         .execute(pool)
         .await?;
+    sqlx::query(include_str!("../migrations/0004_directories.sql"))
+        .execute(pool)
+        .await?;
     Ok(())
 }

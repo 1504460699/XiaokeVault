@@ -8,6 +8,8 @@ mod preview;
 mod scanner;
 mod selection;
 mod watcher;
+mod tree_scanner;
+mod tree;
 use tauri::Manager;
 use tauri_plugin_log::{Target, TargetKind};
 
@@ -93,6 +95,9 @@ pub fn run() {
             dedup::dismiss_duplicate_group,
             preview::get_model_glb,
             preview::get_thumbnail,
+            tree::get_directory_tree,
+            tree::get_directory_files,
+            tree::get_subtree_files,
             asset_types::list_asset_types,
             asset_types::upsert_asset_type,
             asset_types::delete_asset_type,

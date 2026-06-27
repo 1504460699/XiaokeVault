@@ -165,6 +165,10 @@ pub async fn scan_library_full(
         .execute(&*pool)
         .await
         .map_err(|e| e.to_string())?;
+    // 同时跑目录树扫描（写 directories 表）
+    if let Err(e) = indexer::scan_tree_into(&*pool, lib_id, &PathBuf::from(&root)).await {
+        log::warn!("[scan] 目录树扫描失败（不影响主扫描）：{e}");
+    }
     Ok(report)
 }
 
