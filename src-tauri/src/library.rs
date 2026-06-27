@@ -40,6 +40,7 @@ pub struct FileNode {
     pub ext: String,
     pub kind: String,
     pub bytes: i64,
+    pub abs_path: String,
 }
 
 #[tauri::command]
@@ -169,8 +170,10 @@ pub async fn get_package_files(
     pkg_id: i64,
     pool: State<'_, SqlitePool>,
 ) -> Result<Vec<FileNode>, String> {
-    let rows: Vec<(i64, String, String, String, String, i64)> = sqlx::query_as(
-        "SELECT id,rel_path,name,ext,kind,bytes FROM files WHERE package_id=? AND deleted=0 ORDER BY rel_path",
+    let rows: Vec<(i64, String, String, String, String, i64, String)> = sqlx::query_as(
+        "SELECT f.id,f.rel_path,f.name,f.ext,f.kind,f.bytes,p.path
+         FROM files f JOIN packages p ON p.id=f.package_id
+         WHERE f.package_id=? AND f.deleted=0 ORDER BY f.rel_path",
     )
     .bind(pkg_id)
     .fetch_all(&*pool)
@@ -178,13 +181,14 @@ pub async fn get_package_files(
     .map_err(|e| e.to_string())?;
     Ok(rows
         .into_iter()
-        .map(|(id, rel, name, ext, kind, bytes)| FileNode {
+        .map(|(id, rel, name, ext, kind, bytes, pkg_path)| FileNode {
             id,
-            rel_path: rel,
+            rel_path: rel.clone(),
             name,
             ext,
             kind,
             bytes,
+            abs_path: format!("{}/{}", pkg_path, rel),
         })
         .collect())
 }
