@@ -9,6 +9,7 @@ import SelectionBar from "./SelectionBar.vue";
 
 const { t } = useI18n();
 import ImageViewer from "./preview/ImageViewer.vue";
+import GifPlayer from "./preview/GifPlayer.vue";
 // ModelViewer 含 three.js，按需懒加载（进 3D 预览才加载）
 const ModelViewer = defineAsyncComponent(() => import("./preview/ModelViewer.vue"));
 import TextPreview from "./preview/TextPreview.vue";
@@ -47,9 +48,11 @@ function fmtBytes(b: number): string {
       {{ t("preview.title") }}
     </div>
     <div v-if="file" class="flex-1 flex flex-col overflow-hidden">
-      <!-- 图片/动画/矢量：可缩放的 ImageViewer -->
+      <!-- GIF 动画：逐帧播放器 -->
+      <GifPlayer v-if="viewer === 'animated'" :file="file" class="flex-1 min-h-0" />
+      <!-- 图片/矢量：可缩放的 ImageViewer -->
       <ImageViewer
-        v-if="viewer === 'image' || viewer === 'animated' || viewer === 'vector'"
+        v-else-if="viewer === 'image' || viewer === 'vector'"
         :file="file"
         class="flex-1 min-h-0"
       />
