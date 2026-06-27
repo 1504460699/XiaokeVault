@@ -4,11 +4,7 @@
       <stop offset="0" stop-color="#0f172a"/>
       <stop offset="1" stop-color="#1e293b"/>
     </linearGradient>
-    <linearGradient id="door" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#38bdf8"/>
-      <stop offset="1" stop-color="#0284c7"/>
-    </linearGradient>
-    <linearGradient id="ring" x1="0" y1="0" x2="0" y2="1">
+    <linearGradient id="letter" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#7dd3fc"/>
       <stop offset="1" stop-color="#0ea5e9"/>
     </linearGradient>
@@ -17,30 +13,9 @@
   <!-- 圆角背景 -->
   <rect x="0" y="0" width="1024" height="1024" rx="220" ry="220" fill="url(#bg)"/>
 
-  <!-- 保险库外环（厚重的金属边框） -->
-  <circle cx="512" cy="512" r="352" fill="none" stroke="url(#ring)" stroke-width="36"/>
-
-  <!-- 保险库门（主体） -->
-  <circle cx="512" cy="512" r="296" fill="url(#door)"/>
-
-  <!-- 门上的加固铆钉（四个方位） -->
-  <g fill="#0f172a" opacity="0.55">
-    <circle cx="512" cy="232" r="16"/>
-    <circle cx="512" cy="792" r="16"/>
-    <circle cx="232" cy="512" r="16"/>
-    <circle cx="792" cy="512" r="16"/>
+  <!-- X 字母：两条粗线交叉，端点圆头 -->
+  <g stroke="url(#letter)" stroke-width="120" stroke-linecap="round">
+    <line x1="300" y1="300" x2="724" y2="724"/>
+    <line x1="724" y1="300" x2="300" y2="724"/>
   </g>
-
-  <!-- 内圆（保险库的转盘轴） -->
-  <circle cx="512" cy="512" r="150" fill="#0f172a"/>
-  <circle cx="512" cy="512" r="150" fill="none" stroke="#38bdf8" stroke-width="10" opacity="0.6"/>
-
-  <!-- 钥匙孔（宝库的核心意象） -->
-  <g fill="#38bdf8">
-    <circle cx="512" cy="470" r="46"/>
-    <path d="M 492 496 L 532 496 L 548 588 L 476 588 Z"/>
-  </g>
-
-  <!-- 转盘刻度（顶部一道高光，增加立体感） -->
-  <path d="M 300 300 A 296 296 0 0 1 724 300" fill="none" stroke="#e0f2fe" stroke-width="14" stroke-linecap="round" opacity="0.4"/>
 </svg>
