@@ -3,7 +3,7 @@ import { storeToRefs } from "pinia";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useLibraryStore } from "../stores/libraryStore";
 
-defineEmits<{ dedup: [] }>();
+defineEmits<{ dedup: []; types: [] }>();
 
 const store = useLibraryStore();
 const { libraries, currentLibId, scanning, scanReport, error } = storeToRefs(store);
@@ -63,6 +63,12 @@ function onLibChange(e: Event) {
       @click="$emit('dedup')"
     >
       去重
+    </button>
+    <button
+      class="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-sm"
+      @click="$emit('types')"
+    >
+      类型
     </button>
     <button
       class="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-sm"

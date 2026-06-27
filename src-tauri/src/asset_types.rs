@@ -181,3 +181,86 @@ impl Registry {
         &self.types
     }
 }
+
+use tauri::State;
+
+/// 列出合并后的全表（内置默认 + 数据库覆盖）
+#[tauri::command]
+pub async fn list_asset_types(pool: State<'_, SqlitePool>) -> Result<Vec<AssetType>, String> {
+    let reg = Registry::load(&pool).await.map_err(|e| e.to_string())?;
+    Ok(reg.all().to_vec())
+}
+
+/// 新增/编辑类型（覆盖内置或追加自定义）
+#[tauri::command]
+pub async fn upsert_asset_type(
+    kind: String,
+    label: String,
+    extensions: Vec<String>,
+    viewer: String,
+    is_source: bool,
+    built_in: bool,
+    pool: State<'_, SqlitePool>,
+) -> Result<(), String> {
+    let exts_json = serde_json::to_string(&extensions).map_err(|e| e.to_string())?;
+    sqlx::query(
+        "INSERT INTO asset_types(kind,label,extensions,viewer,is_source,built_in)
+         VALUES(?,?,?,?,?,?)
+         ON CONFLICT(kind) DO UPDATE SET label=excluded.label, extensions=excluded.extensions,
+           viewer=excluded.viewer, is_source=excluded.is_source",
+    )
+    .bind(&kind)
+    .bind(&label)
+    .bind(&exts_json)
+    .bind(&viewer)
+    .bind(if is_source { 1 } else { 0 })
+    .bind(if built_in { 1 } else { 0 })
+    .execute(&*pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// 删除类型（仅限用户新增项 built_in=0）
+#[tauri::command]
+pub async fn delete_asset_type(kind: String, pool: State<'_, SqlitePool>) -> Result<(), String> {
+    let res = sqlx::query("DELETE FROM asset_types WHERE kind=? AND built_in=0")
+        .bind(&kind)
+        .execute(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    if res.rows_affected() == 0 {
+        return Err("内置类型不可删除（只能覆盖编辑）".into());
+    }
+    Ok(())
+}
+
+/// 按当前注册表重新分类全库（重算 files.kind）
+#[derive(serde::Serialize)]
+pub struct ReclassifyReport {
+    pub updated: i64,
+}
+
+#[tauri::command]
+pub async fn reclassify_all(pool: State<'_, SqlitePool>) -> Result<ReclassifyReport, String> {
+    let reg = Registry::load(&pool).await.map_err(|e| e.to_string())?;
+    let files: Vec<(i64, String)> = sqlx::query_as("SELECT id, ext FROM files WHERE deleted=0")
+        .fetch_all(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    let mut updated = 0i64;
+    for (id, ext) in files {
+        let new_kind = reg.kind_for(&ext);
+        let res = sqlx::query("UPDATE files SET kind=? WHERE id=? AND kind!=?")
+            .bind(new_kind)
+            .bind(id)
+            .bind(new_kind)
+            .execute(&*pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        if res.rows_affected() > 0 {
+            updated += 1;
+        }
+    }
+    Ok(ReclassifyReport { updated })
+}

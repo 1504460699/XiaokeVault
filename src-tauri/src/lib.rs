@@ -57,7 +57,11 @@ pub fn run() {
             dedup::get_duplicate_groups,
             dedup::remove_duplicate,
             dedup::remove_all_duplicates,
-            preview::get_model_glb
+            preview::get_model_glb,
+            asset_types::list_asset_types,
+            asset_types::upsert_asset_type,
+            asset_types::delete_asset_type,
+            asset_types::reclassify_all
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

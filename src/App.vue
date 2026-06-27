@@ -6,6 +6,7 @@ import PackageGrid from "./components/PackageGrid.vue";
 import PreviewPane from "./components/PreviewPane.vue";
 import ExportDialog from "./components/ExportDialog.vue";
 import DedupPanel from "./components/DedupPanel.vue";
+import TypeSettings from "./components/TypeSettings.vue";
 import { useLibraryStore } from "./stores/libraryStore";
 import { useSelectionStore } from "./stores/selectionStore";
 
@@ -13,6 +14,7 @@ const store = useLibraryStore();
 const selStore = useSelectionStore();
 const showExport = ref(false);
 const showDedup = ref(false);
+const showTypes = ref(false);
 
 onMounted(async () => {
   await store.loadLibraries();
@@ -51,7 +53,7 @@ async function onOpenExport() {
 
 <template>
   <div class="h-full flex flex-col bg-slate-900 text-slate-100">
-    <TopBar @dedup="showDedup = true" />
+    <TopBar @dedup="showDedup = true" @types="showTypes = true" />
     <div class="flex-1 flex overflow-hidden">
       <CategoryTree />
       <PackageGrid />
@@ -59,5 +61,6 @@ async function onOpenExport() {
     </div>
     <ExportDialog :show="showExport" @close="showExport = false" />
     <DedupPanel :show="showDedup" @close="showDedup = false" />
+    <TypeSettings :show="showTypes" @close="showTypes = false" />
   </div>
 </template>
