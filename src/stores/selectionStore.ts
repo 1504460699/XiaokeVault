@@ -89,6 +89,15 @@ export const useSelectionStore = defineStore("selection", () => {
     selectedFileIds.value = new Set();
   }
 
+  /// 清空当前项目的所有勾选
+  async function clearAll() {
+    if (currentProjectId.value === null) return;
+    await ipc.clearSelections(currentProjectId.value);
+    pkgStates.value = {};
+    selectedFileIds.value = new Set();
+    await refreshSummary();
+  }
+
   async function refreshSummary() {
     if (currentProjectId.value === null) return;
     summary.value = await ipc.getSelectionSummary(currentProjectId.value);
@@ -108,6 +117,7 @@ export const useSelectionStore = defineStore("selection", () => {
     setPreview,
     togglePackage,
     toggleFile,
+    clearAll,
     refreshPkgStates,
     resetFileSelections,
     refreshSummary,

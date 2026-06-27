@@ -113,6 +113,17 @@ pub async fn set_selection(
     Ok(())
 }
 
+/// 清空项目的所有勾选
+#[tauri::command]
+pub async fn clear_selections(project_id: i64, pool: State<'_, SqlitePool>) -> Result<(), String> {
+    sqlx::query("DELETE FROM selections WHERE project_id=?")
+        .bind(project_id)
+        .execute(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 /// 查某分类下各包的勾选状态
 #[tauri::command]
 pub async fn get_category_selection_states(

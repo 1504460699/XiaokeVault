@@ -47,6 +47,7 @@ pub fn run() {
             selection::create_project,
             selection::list_projects,
             selection::set_selection,
+            selection::clear_selections,
             selection::get_category_selection_states,
             selection::get_selection_summary,
             exporter::run_export

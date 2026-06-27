@@ -65,4 +65,7 @@ export const ipc = {
   async getSelectionSummary(projectId: number): Promise<SelectionSummary> {
     return invoke<SelectionSummary>("get_selection_summary", { projectId });
   },
+  async clearSelections(projectId: number): Promise<void> {
+    return invoke<void>("clear_selections", { projectId });
+  },
 };

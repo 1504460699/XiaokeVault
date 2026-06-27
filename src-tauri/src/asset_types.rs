@@ -52,7 +52,7 @@ pub fn builtin_types() -> Vec<AssetType> {
         AssetType {
             kind: "font".into(),
             label: "字体".into(),
-            extensions: str_vec(["ttf", "otf"]),
+            extensions: str_vec(["ttf", "otf", "eot", "woff", "woff2"]),
             viewer: "font".into(),
             icon: Some("font".into()),
             is_source: false,
@@ -60,7 +60,7 @@ pub fn builtin_types() -> Vec<AssetType> {
         AssetType {
             kind: "text".into(),
             label: "文本数据".into(),
-            extensions: str_vec(["txt", "xml", "json", "cs", "sh", "mat", "tmx"]),
+            extensions: str_vec(["txt", "xml", "json", "cs", "sh", "mat", "tmx", "html", "css", "js", "md"]),
             viewer: "text".into(),
             icon: Some("text".into()),
             is_source: false,

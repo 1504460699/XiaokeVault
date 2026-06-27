@@ -7,6 +7,12 @@ const { summary, currentProjectId, projects } = storeToRefs(sel);
 
 defineEmits<{ export: [] }>();
 
+async function onClear() {
+  if (summary.value.file_count === 0) return;
+  if (!confirm(`清空所有 ${summary.value.file_count} 个文件的勾选？`)) return;
+  await sel.clearAll();
+}
+
 function fmtBytes(b: number): string {
   if (b > 1e9) return (b / 1e9).toFixed(2) + " GB";
   if (b > 1e6) return (b / 1e6).toFixed(1) + " MB";
@@ -28,6 +34,13 @@ function fmtBytes(b: number): string {
       @click="$emit('export')"
     >
       {{ currentProjectId === null ? "创建项目并导出" : "导出" }}
+    </button>
+    <button
+      v-if="summary.file_count > 0"
+      class="w-full px-2 py-0.5 rounded bg-slate-600 hover:bg-slate-500 text-xs text-slate-300"
+      @click="onClear"
+    >
+      清空选择
     </button>
   </div>
 </template>
