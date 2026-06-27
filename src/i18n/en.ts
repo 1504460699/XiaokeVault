@@ -198,6 +198,7 @@ export default {
   },
   errors: {
     loadFailed: "Load failed: {msg}",
+    addLibraryFailed: "Failed to add library",
     unknown: "Unknown error",
   },
 };

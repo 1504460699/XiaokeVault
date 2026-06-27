@@ -5,6 +5,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useLibraryStore } from "../stores/libraryStore";
 import { useSearchStore } from "../stores/searchStore";
 import { setLocale } from "../i18n";
+import { handleError } from "../utils/toast";
 import WindowControls from "./WindowControls.vue";
 
 defineEmits<{ dedup: []; types: [] }>();
@@ -31,7 +32,7 @@ async function onAddLibrary() {
     await store.addLibrary(name, rootPath);
     await store.loadCategories();
   } catch (e: unknown) {
-    alert(e instanceof Error ? e.message : String(e));
+    handleError(e, t("errors.addLibraryFailed"));
   }
 }
 

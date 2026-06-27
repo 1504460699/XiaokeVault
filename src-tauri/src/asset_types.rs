@@ -1,3 +1,4 @@
+use crate::error::AppError;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use std::collections::HashMap;
@@ -186,8 +187,8 @@ use tauri::State;
 
 /// 列出合并后的全表（内置默认 + 数据库覆盖）
 #[tauri::command]
-pub async fn list_asset_types(pool: State<'_, SqlitePool>) -> Result<Vec<AssetType>, String> {
-    let reg = Registry::load(&pool).await.map_err(|e| e.to_string())?;
+pub async fn list_asset_types(pool: State<'_, SqlitePool>) -> Result<Vec<AssetType>, AppError> {
+    let reg = Registry::load(&pool).await?;
     Ok(reg.all().to_vec())
 }
 
@@ -201,8 +202,8 @@ pub async fn upsert_asset_type(
     is_source: bool,
     built_in: bool,
     pool: State<'_, SqlitePool>,
-) -> Result<(), String> {
-    let exts_json = serde_json::to_string(&extensions).map_err(|e| e.to_string())?;
+) -> Result<(), AppError> {
+    let exts_json = serde_json::to_string(&extensions)?;
     sqlx::query(
         "INSERT INTO asset_types(kind,label,extensions,viewer,is_source,built_in)
          VALUES(?,?,?,?,?,?)
@@ -217,20 +218,22 @@ pub async fn upsert_asset_type(
     .bind(if built_in { 1 } else { 0 })
     .execute(&*pool)
     .await
-    .map_err(|e| e.to_string())?;
+    ?;
     Ok(())
 }
 
 /// 删除类型（仅限用户新增项 built_in=0）
 #[tauri::command]
-pub async fn delete_asset_type(kind: String, pool: State<'_, SqlitePool>) -> Result<(), String> {
+pub async fn delete_asset_type(kind: String, pool: State<'_, SqlitePool>) -> Result<(), AppError> {
     let res = sqlx::query("DELETE FROM asset_types WHERE kind=? AND built_in=0")
         .bind(&kind)
         .execute(&*pool)
         .await
-        .map_err(|e| e.to_string())?;
+        ?;
     if res.rows_affected() == 0 {
-        return Err("内置类型不可删除（只能覆盖编辑）".into());
+        return Err(AppError::InvalidInput(
+            "内置类型不可删除（只能覆盖编辑）".to_string(),
+        ));
     }
     Ok(())
 }
@@ -245,18 +248,18 @@ pub struct ReclassifyReport {
 pub async fn reclassify_all(
     app: tauri::AppHandle,
     pool: State<'_, SqlitePool>,
-) -> Result<ReclassifyReport, String> {
+) -> Result<ReclassifyReport, AppError> {
     use tauri::Emitter;
-    let reg = Registry::load(&pool).await.map_err(|e| e.to_string())?;
+    let reg = Registry::load(&pool).await?;
     let files: Vec<(i64, String)> = sqlx::query_as("SELECT id, ext FROM files WHERE deleted=0")
         .fetch_all(&*pool)
         .await
-        .map_err(|e| e.to_string())?;
+        ?;
     let total = files.len() as u64;
     let mut updated = 0i64;
     let mut done = 0u64;
     // 单事务批量更新
-    let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
+    let mut tx = pool.begin().await?;
     for (id, ext) in &files {
         let new_kind = reg.kind_for(ext);
         let res = sqlx::query("UPDATE files SET kind=? WHERE id=? AND kind!=?")
@@ -265,7 +268,7 @@ pub async fn reclassify_all(
             .bind(new_kind)
             .execute(&mut *tx)
             .await
-            .map_err(|e| e.to_string())?;
+            ?;
         if res.rows_affected() > 0 {
             updated += 1;
         }
@@ -277,7 +280,7 @@ pub async fn reclassify_all(
             );
         }
     }
-    tx.commit().await.map_err(|e| e.to_string())?;
+    tx.commit().await?;
     let _ = app.emit(
         "reclassify://progress",
         serde_json::json!({ "done": done, "total": total }),

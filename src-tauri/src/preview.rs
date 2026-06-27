@@ -1,3 +1,4 @@
+use crate::error::AppError;
 use serde::Serialize;
 use sqlx::SqlitePool;
 use std::path::PathBuf;
@@ -16,7 +17,7 @@ pub struct ThumbResult {
 
 /// 返回缩略图路径：大图(>50KB)生成缩略图缓存，小图直接返回原路径
 #[tauri::command]
-pub async fn get_thumbnail(file_id: i64, pool: State<'_, SqlitePool>) -> Result<ThumbResult, String> {
+pub async fn get_thumbnail(file_id: i64, pool: State<'_, SqlitePool>) -> Result<ThumbResult, AppError> {
     let (abs_pkg, rel, bytes, ext): (String, String, i64, String) = sqlx::query_as(
         "SELECT p.path, f.rel_path, f.bytes, f.ext FROM files f
          JOIN packages p ON p.id=f.package_id WHERE f.id=?",
@@ -24,7 +25,7 @@ pub async fn get_thumbnail(file_id: i64, pool: State<'_, SqlitePool>) -> Result<
     .bind(file_id)
     .fetch_one(&*pool)
     .await
-    .map_err(|e| e.to_string())?;
+    ?;
 
     let src = std::path::Path::new(&abs_pkg).join(&rel);
 
@@ -39,7 +40,7 @@ pub async fn get_thumbnail(file_id: i64, pool: State<'_, SqlitePool>) -> Result<
     // 大图：生成缩略图
     let mut cache = crate::db::data_root();
     cache.push("thumbs");
-    std::fs::create_dir_all(&cache).map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&cache)?;
     let thumb_path = cache.join(format!("{}.webp", file_id));
 
     // 缓存命中
@@ -67,10 +68,10 @@ pub async fn get_thumbnail(file_id: i64, pool: State<'_, SqlitePool>) -> Result<
     }
 }
 
-fn generate_thumb(src: &std::path::Path, dest: &std::path::Path) -> Result<(), String> {
-    let img = image::open(src).map_err(|e| e.to_string())?;
+fn generate_thumb(src: &std::path::Path, dest: &std::path::Path) -> Result<(), AppError> {
+    let img = image::open(src)?;
     let thumb = img.resize(THUMB_SIZE, THUMB_SIZE, image::imageops::FilterType::Nearest);
-    thumb.save_with_format(dest, image::ImageFormat::WebP).map_err(|e| e.to_string())?;
+    thumb.save_with_format(dest, image::ImageFormat::WebP)?;
     Ok(())
 }
 
@@ -103,10 +104,10 @@ fn find_blender() -> Option<PathBuf> {
 
 /// 返回 blend 转换后的 glb 路径（带缓存）
 #[tauri::command]
-pub async fn get_model_glb(blend_path: String) -> Result<ModelPath, String> {
+pub async fn get_model_glb(blend_path: String) -> Result<ModelPath, AppError> {
     let mut cache = crate::db::data_root();
     cache.push("glb_cache");
-    std::fs::create_dir_all(&cache).map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&cache)?;
     let stem = std::path::Path::new(&blend_path)
         .file_stem()
         .and_then(|s| s.to_str())
@@ -130,7 +131,7 @@ pub async fn get_model_glb(blend_path: String) -> Result<ModelPath, String> {
         }
     };
     let script = cache.join("export_glb.py");
-    std::fs::write(&script, EXPORT_SCRIPT).map_err(|e| e.to_string())?;
+    std::fs::write(&script, EXPORT_SCRIPT)?;
     let out = Command::new(&blender)
         .arg("--background")
         .arg(&blend_path)
@@ -139,7 +140,7 @@ pub async fn get_model_glb(blend_path: String) -> Result<ModelPath, String> {
         .arg("--")
         .arg(&glb)
         .output()
-        .map_err(|e| e.to_string())?;
+        ?;
     if !out.status.success() || !glb.exists() {
         let stderr = String::from_utf8_lossy(&out.stderr);
         return Ok(ModelPath {

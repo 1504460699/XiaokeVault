@@ -1,3 +1,4 @@
+use crate::error::AppError;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
@@ -41,16 +42,16 @@ fn norm(s: &str) -> String {
 
 /// 检测全部重复，写入 duplicate_groups（先清空旧结果）
 #[tauri::command]
-pub async fn run_dedup(lib_id: i64, pool: State<'_, SqlitePool>) -> Result<DedupReport, String> {
+pub async fn run_dedup(lib_id: i64, pool: State<'_, SqlitePool>) -> Result<DedupReport, AppError> {
     let now = chrono::Utc::now().timestamp();
     sqlx::query("DELETE FROM duplicate_members")
         .execute(&*pool)
         .await
-        .map_err(|e| e.to_string())?;
+        ?;
     sqlx::query("DELETE FROM duplicate_groups")
         .execute(&*pool)
         .await
-        .map_err(|e| e.to_string())?;
+        ?;
 
     let mut groups = 0i64;
     let mut removable_files = 0i64;
@@ -64,7 +65,7 @@ pub async fn run_dedup(lib_id: i64, pool: State<'_, SqlitePool>) -> Result<Dedup
     .bind(lib_id)
     .fetch_all(&*pool)
     .await
-    .map_err(|e| e.to_string())?;
+    ?;
 
     for (pkg_id, pkg_path) in &pkgs {
         let pkg_dir = std::path::Path::new(pkg_path);
@@ -104,7 +105,7 @@ pub async fn run_dedup(lib_id: i64, pool: State<'_, SqlitePool>) -> Result<Dedup
                     .bind(now)
                     .fetch_one(&*pool)
                     .await
-                    .map_err(|e| e.to_string())?;
+                    ?;
                     let zip_file: Option<(i64,)> = sqlx::query_as(
                         "SELECT id FROM files WHERE package_id=? AND rel_path=? AND kind='archive'",
                     )
@@ -112,7 +113,7 @@ pub async fn run_dedup(lib_id: i64, pool: State<'_, SqlitePool>) -> Result<Dedup
                     .bind(zip_name)
                     .fetch_optional(&*pool)
                     .await
-                    .map_err(|e| e.to_string())?;
+                    ?;
                     if let Some((fid,)) = zip_file {
                         sqlx::query(
                             "INSERT INTO duplicate_members(group_id,file_id,package_id,role) VALUES(?,?,?,'remove')",
@@ -122,12 +123,12 @@ pub async fn run_dedup(lib_id: i64, pool: State<'_, SqlitePool>) -> Result<Dedup
                         .bind(pkg_id)
                         .execute(&*pool)
                         .await
-                        .map_err(|e| e.to_string())?;
+                        ?;
                         let (bytes,): (i64,) = sqlx::query_as("SELECT bytes FROM files WHERE id=?")
                             .bind(fid)
                             .fetch_one(&*pool)
                             .await
-                            .map_err(|e| e.to_string())?;
+                            ?;
                         removable_files += 1;
                         removable_bytes += bytes;
                     }
@@ -144,15 +145,15 @@ pub async fn run_dedup(lib_id: i64, pool: State<'_, SqlitePool>) -> Result<Dedup
     // 取每个分类下的包，按规整后名字分组，同组内配对
     let cats: Vec<(i64,)> = sqlx::query_as(
         "SELECT id FROM categories WHERE library_id=? ORDER BY id")
-        .bind(lib_id).fetch_all(&*pool).await.map_err(|e| e.to_string())?;
+        .bind(lib_id).fetch_all(&*pool).await?;
     for (cat_id,) in cats {
         let cat_pkgs: Vec<(i64, String, i64)> = sqlx::query_as(
             "SELECT id, name, file_count FROM packages WHERE category_id=? ORDER BY name")
-            .bind(cat_id).fetch_all(&*pool).await.map_err(|e| e.to_string())?;
+            .bind(cat_id).fetch_all(&*pool).await?;
         // 预加载已忽略的包对集合
         let dismissed: Vec<(i64, i64)> = sqlx::query_as(
             "SELECT package_a, package_b FROM dismissed_pairs")
-            .fetch_all(&*pool).await.map_err(|e| e.to_string())?;
+            .fetch_all(&*pool).await?;
         let dismissed_set: std::collections::HashSet<(i64, i64)> = dismissed.into_iter().collect();
         for i in 0..cat_pkgs.len() {
             for j in (i + 1)..cat_pkgs.len() {
@@ -177,11 +178,11 @@ pub async fn run_dedup(lib_id: i64, pool: State<'_, SqlitePool>) -> Result<Dedup
                             "INSERT INTO duplicate_groups(reason,detail,created_at) VALUES('likely_backup',?,?) RETURNING id")
                             .bind(format!("疑似备份：「{}」({}文件) 与 「{}」({}文件) 名称相似且含版本/备份标识，请人工确认", name_a, fc_a, name_b, fc_b))
                             .bind(now)
-                            .fetch_one(&*pool).await.map_err(|e| e.to_string())?;
+                            .fetch_one(&*pool).await?;
                         sqlx::query("INSERT OR IGNORE INTO duplicate_members(group_id,package_id,role) VALUES(?,?,'keep')")
-                            .bind(gid).bind(id_a).execute(&*pool).await.map_err(|e| e.to_string())?;
+                            .bind(gid).bind(id_a).execute(&*pool).await?;
                         sqlx::query("INSERT OR IGNORE INTO duplicate_members(group_id,package_id,role) VALUES(?,?,'keep')")
-                            .bind(gid).bind(id_b).execute(&*pool).await.map_err(|e| e.to_string())?;
+                            .bind(gid).bind(id_b).execute(&*pool).await?;
                         groups += 1;
                     }
                 }
@@ -245,7 +246,7 @@ fn common_prefix_ratio(a: &str, b: &str) -> f64 {
 pub async fn dismiss_duplicate_group(
     group_id: i64,
     pool: State<'_, SqlitePool>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let now = chrono::Utc::now().timestamp();
     // 取该组的所有 package_id 成员，两两记入 dismissed_pairs
     let pks: Vec<i64> = sqlx::query_scalar(
@@ -254,36 +255,36 @@ pub async fn dismiss_duplicate_group(
     .bind(group_id)
     .fetch_all(&*pool)
     .await
-    .map_err(|e| e.to_string())?;
+    ?;
     for i in 0..pks.len() {
         for j in (i + 1)..pks.len() {
             let (a, b) = if pks[i] < pks[j] { (pks[i], pks[j]) } else { (pks[j], pks[i]) };
             sqlx::query("INSERT OR IGNORE INTO dismissed_pairs(package_a,package_b,created_at) VALUES(?,?,?)")
                 .bind(a).bind(b).bind(now).execute(&*pool).await
-                .map_err(|e| e.to_string())?;
+                ?;
         }
     }
     sqlx::query("DELETE FROM duplicate_members WHERE group_id=?")
         .bind(group_id)
         .execute(&*pool)
         .await
-        .map_err(|e| e.to_string())?;
+        ?;
     sqlx::query("DELETE FROM duplicate_groups WHERE id=?")
         .bind(group_id)
         .execute(&*pool)
         .await
-        .map_err(|e| e.to_string())?;
+        ?;
     Ok(())
 }
 
 /// 取所有重复组
 #[tauri::command]
-pub async fn get_duplicate_groups(pool: State<'_, SqlitePool>) -> Result<Vec<DupGroup>, String> {
+pub async fn get_duplicate_groups(pool: State<'_, SqlitePool>) -> Result<Vec<DupGroup>, AppError> {
     let groups: Vec<(i64, String, Option<String>)> =
         sqlx::query_as("SELECT id, reason, detail FROM duplicate_groups ORDER BY id")
             .fetch_all(&*pool)
             .await
-            .map_err(|e| e.to_string())?;
+            ?;
     let mut out = Vec::new();
     for (gid, reason, detail) in groups {
         let members: Vec<(Option<i64>, Option<i64>, Option<String>, String, String)> =
@@ -297,7 +298,7 @@ pub async fn get_duplicate_groups(pool: State<'_, SqlitePool>) -> Result<Vec<Dup
             .bind(gid)
             .fetch_all(&*pool)
             .await
-            .map_err(|e| e.to_string())?;
+            ?;
         out.push(DupGroup {
             id: gid,
             reason,
@@ -319,7 +320,7 @@ pub async fn get_duplicate_groups(pool: State<'_, SqlitePool>) -> Result<Vec<Dup
 
 /// 把单个文件移到备份目录，返回目标路径。
 /// backup_root: 用户指定的备份根目录；为空则用 app data/trash。
-fn move_to_backup(src: &std::path::Path, abs_pkg: &str, rel: &str, backup_root: &str) -> Result<std::path::PathBuf, String> {
+fn move_to_backup(src: &std::path::Path, abs_pkg: &str, rel: &str, backup_root: &str) -> Result<std::path::PathBuf, AppError> {
     let mut base = if backup_root.is_empty() {
         let mut t = crate::db::data_root();
         t.push("trash");
@@ -330,9 +331,9 @@ fn move_to_backup(src: &std::path::Path, abs_pkg: &str, rel: &str, backup_root: 
     base.push(abs_pkg.replace(':', "_"));
     base.push(rel);
     if let Some(parent) = base.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        std::fs::create_dir_all(parent)?;
     }
-    std::fs::rename(src, &base).map_err(|e| e.to_string())?;
+    std::fs::rename(src, &base)?;
     Ok(base)
 }
 
@@ -342,14 +343,14 @@ pub async fn remove_duplicate(
     file_id: i64,
     backup_root: String,
     pool: State<'_, SqlitePool>,
-) -> Result<String, String> {
+) -> Result<String, AppError> {
     let (abs_pkg, rel): (String, String) = sqlx::query_as(
         "SELECT p.path, f.rel_path FROM files f JOIN packages p ON p.id=f.package_id WHERE f.id=?",
     )
     .bind(file_id)
     .fetch_one(&*pool)
     .await
-    .map_err(|e| e.to_string())?;
+    ?;
     let src = std::path::Path::new(&abs_pkg).join(&rel);
     let msg = if src.exists() {
         let dest = move_to_backup(&src, &abs_pkg, &rel, &backup_root)?;
@@ -357,14 +358,14 @@ pub async fn remove_duplicate(
             .bind(file_id)
             .execute(&*pool)
             .await
-            .map_err(|e| e.to_string())?;
+            ?;
         dest.to_string_lossy().to_string()
     } else {
         sqlx::query("UPDATE files SET deleted=1 WHERE id=?")
             .bind(file_id)
             .execute(&*pool)
             .await
-            .map_err(|e| e.to_string())?;
+            ?;
         "文件已不存在，仅标记删除".into()
     };
     Ok(msg)
@@ -381,13 +382,13 @@ pub struct BatchRemoveResult {
 pub async fn remove_all_duplicates(
     backup_root: String,
     pool: State<'_, SqlitePool>,
-) -> Result<BatchRemoveResult, String> {
+) -> Result<BatchRemoveResult, AppError> {
     let file_ids: Vec<i64> = sqlx::query_scalar(
         "SELECT file_id FROM duplicate_members WHERE role='remove' AND file_id IS NOT NULL",
     )
     .fetch_all(&*pool)
     .await
-    .map_err(|e| e.to_string())?;
+    ?;
     let mut removed = 0i64;
     let mut failed = 0i64;
     for fid in file_ids {
@@ -397,7 +398,7 @@ pub async fn remove_all_duplicates(
         .bind(fid)
         .fetch_one(&*pool)
         .await
-        .map_err(|e| e.to_string())?;
+        ?;
         let src = std::path::Path::new(&abs_pkg).join(&rel);
         let ok = if src.exists() {
             move_to_backup(&src, &abs_pkg, &rel, &backup_root).is_ok()
@@ -416,9 +417,9 @@ pub async fn remove_all_duplicates(
     }
     // 清空已处理的重复组
     sqlx::query("DELETE FROM duplicate_members")
-        .execute(&*pool).await.map_err(|e| e.to_string())?;
+        .execute(&*pool).await?;
     sqlx::query("DELETE FROM duplicate_groups")
-        .execute(&*pool).await.map_err(|e| e.to_string())?;
+        .execute(&*pool).await?;
     Ok(BatchRemoveResult { removed, failed })
 }
 

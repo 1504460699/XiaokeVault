@@ -6,6 +6,7 @@ import { storeToRefs } from "pinia";
 import { useSelectionStore } from "../stores/selectionStore";
 import { exportIpc } from "../ipc/export";
 import { listen } from "@tauri-apps/api/event";
+import { handleError } from "../utils/toast";
 import type { ExportProgress } from "../types/export";
 
 const { t } = useI18n();
@@ -46,7 +47,7 @@ async function doExport() {
     );
     result.value = r.output_path;
   } catch (e) {
-    alert(t("export.failed", { msg: String(e) }));
+    handleError(e, t("export.failed", { msg: "" }));
   } finally {
     exporting.value = false;
     unlisten();

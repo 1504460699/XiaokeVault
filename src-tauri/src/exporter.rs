@@ -1,3 +1,4 @@
+use crate::error::AppError;
 use serde::Serialize;
 use sqlx::SqlitePool;
 use std::collections::BTreeSet;
@@ -33,7 +34,7 @@ struct ExportItem {
     bytes: i64,
 }
 
-async fn resolve_export_items(pool: &SqlitePool, project_id: i64) -> Result<Vec<ExportItem>, String> {
+async fn resolve_export_items(pool: &SqlitePool, project_id: i64) -> Result<Vec<ExportItem>, AppError> {
     let rows: Vec<(String, String, String, String, String, String, i64, String)> =
         sqlx::query_as(
             "SELECT p.path, c.name, p.name, f.rel_path, f.name, f.ext, f.bytes, f.kind
@@ -50,7 +51,7 @@ async fn resolve_export_items(pool: &SqlitePool, project_id: i64) -> Result<Vec<
         .bind(project_id)
         .fetch_all(pool)
         .await
-        .map_err(|e| e.to_string())?;
+        ?;
 
     let mut items = Vec::new();
     for (pkg_path, category, package, rel, name, ext, bytes, kind) in rows {
@@ -77,12 +78,12 @@ pub async fn run_export(
     format: String,
     export_root: String,
     pool: State<'_, SqlitePool>,
-) -> Result<ExportResult, String> {
+) -> Result<ExportResult, AppError> {
     let (proj_name,): (String,) = sqlx::query_as("SELECT name FROM projects WHERE id=?")
         .bind(project_id)
         .fetch_one(&*pool)
         .await
-        .map_err(|e| e.to_string())?;
+        ?;
 
     // 更新项目的 export_root（用户在对话框选择的导出位置）
     sqlx::query("UPDATE projects SET export_root=? WHERE id=?")
@@ -90,12 +91,12 @@ pub async fn run_export(
         .bind(project_id)
         .execute(&*pool)
         .await
-        .map_err(|e| e.to_string())?;
+        ?;
 
     let items = resolve_export_items(&pool, project_id).await?;
     let total = items.len() as u64;
     let out_root = PathBuf::from(&export_root);
-    fs::create_dir_all(&out_root).map_err(|e| e.to_string())?;
+    fs::create_dir_all(&out_root)?;
 
     let emit = |app: &AppHandle, stage: &str, done: u64, total: u64, current: &str| {
         let _ = app.emit(
@@ -111,7 +112,7 @@ pub async fn run_export(
 
     let result = if format == "zip" {
         let zip_path = out_root.join(format!("{}.zip", sanitize(&proj_name)));
-        let file = fs::File::create(&zip_path).map_err(|e| e.to_string())?;
+        let file = fs::File::create(&zip_path)?;
         let mut writer = zip::ZipWriter::new(file);
         let opts = SimpleFileOptions::default();
         let mut done = 0u64;
@@ -126,7 +127,7 @@ pub async fn run_export(
         }
         write_credits_to_zip(&mut writer, &pool, &items).await?;
         write_manifest_to_zip(&mut writer, &proj_name, "zip", &items)?;
-        writer.finish().map_err(|e| e.to_string())?;
+        writer.finish()?;
         emit(&app, "done", done, total, "");
         ExportResult {
             output_path: zip_path.to_string_lossy().to_string(),
@@ -135,7 +136,7 @@ pub async fn run_export(
         }
     } else {
         let proj_dir = out_root.join(sanitize(&proj_name));
-        fs::create_dir_all(&proj_dir).map_err(|e| e.to_string())?;
+        fs::create_dir_all(&proj_dir)?;
         let mut done = 0u64;
         for it in &items {
             emit(&app, "copy", done, total, &it.dest_rel);
@@ -171,7 +172,7 @@ fn sanitize(s: &str) -> String {
 async fn build_credits(
     pool: &SqlitePool,
     items: &[ExportItem],
-) -> Result<(String, serde_json::Value), String> {
+) -> Result<(String, serde_json::Value), AppError> {
     let mut pkg_set: BTreeSet<String> = BTreeSet::new();
     for it in items {
         pkg_set.insert(it.package.clone());
@@ -185,7 +186,7 @@ async fn build_credits(
         .bind(pkg_name)
         .fetch_optional(pool)
         .await
-        .map_err(|e| e.to_string())?;
+        ?;
         let (url, title, license) = row.unwrap_or((None, None, None));
         let display_title = title.clone().unwrap_or_else(|| pkg_name.clone());
         lines.push(format!(
@@ -204,18 +205,18 @@ async fn build_credits(
     Ok((lines.join("\n"), serde_json::json!({ "credits": json_arr })))
 }
 
-async fn write_credits(proj_dir: &Path, pool: &SqlitePool, items: &[ExportItem]) -> Result<(), String> {
+async fn write_credits(proj_dir: &Path, pool: &SqlitePool, items: &[ExportItem]) -> Result<(), AppError> {
     let (txt, json) = build_credits(pool, items).await?;
-    fs::write(proj_dir.join("CREDITS.txt"), txt).map_err(|e| e.to_string())?;
+    fs::write(proj_dir.join("CREDITS.txt"), txt)?;
     fs::write(
         proj_dir.join("CREDITS.json"),
         serde_json::to_string_pretty(&json).unwrap(),
     )
-    .map_err(|e| e.to_string())?;
+    ?;
     Ok(())
 }
 
-fn write_manifest(proj_dir: &Path, project_name: &str, format: &str, items: &[ExportItem]) -> Result<(), String> {
+fn write_manifest(proj_dir: &Path, project_name: &str, format: &str, items: &[ExportItem]) -> Result<(), AppError> {
     let manifest = serde_json::json!({
         "project": project_name,
         "exported_at": chrono::Utc::now().timestamp(),
@@ -237,7 +238,7 @@ fn write_manifest(proj_dir: &Path, project_name: &str, format: &str, items: &[Ex
         proj_dir.join("manifest.json"),
         serde_json::to_string_pretty(&manifest).unwrap(),
     )
-    .map_err(|e| e.to_string())?;
+    ?;
     Ok(())
 }
 
@@ -245,15 +246,15 @@ async fn write_credits_to_zip(
     writer: &mut zip::ZipWriter<fs::File>,
     pool: &SqlitePool,
     items: &[ExportItem],
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let (txt, json) = build_credits(pool, items).await?;
     let opts = SimpleFileOptions::default();
-    writer.start_file("CREDITS.txt", opts).map_err(|e| e.to_string())?;
-    writer.write_all(txt.as_bytes()).map_err(|e| e.to_string())?;
-    writer.start_file("CREDITS.json", opts).map_err(|e| e.to_string())?;
+    writer.start_file("CREDITS.txt", opts)?;
+    writer.write_all(txt.as_bytes())?;
+    writer.start_file("CREDITS.json", opts)?;
     writer
         .write_all(serde_json::to_string_pretty(&json).unwrap().as_bytes())
-        .map_err(|e| e.to_string())?;
+        ?;
     Ok(())
 }
 
@@ -262,7 +263,7 @@ fn write_manifest_to_zip(
     project_name: &str,
     format: &str,
     items: &[ExportItem],
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let manifest = serde_json::json!({
         "project": project_name,
         "exported_at": chrono::Utc::now().timestamp(),
@@ -281,9 +282,9 @@ fn write_manifest_to_zip(
         })).collect::<Vec<_>>(),
     });
     let opts = SimpleFileOptions::default();
-    writer.start_file("manifest.json", opts).map_err(|e| e.to_string())?;
+    writer.start_file("manifest.json", opts)?;
     writer
         .write_all(serde_json::to_string_pretty(&manifest).unwrap().as_bytes())
-        .map_err(|e| e.to_string())?;
+        ?;
     Ok(())
 }

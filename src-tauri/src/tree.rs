@@ -1,3 +1,4 @@
+use crate::error::AppError;
 use serde::Serialize;
 use sqlx::SqlitePool;
 use std::collections::HashMap;
@@ -22,7 +23,7 @@ pub struct DirNode {
 pub async fn get_directory_tree(
     lib_id: i64,
     pool: State<'_, SqlitePool>,
-) -> Result<Vec<DirNode>, String> {
+) -> Result<Vec<DirNode>, AppError> {
     // 一次取所有目录行，内存里组装树
     let rows: Vec<(i64, Option<i64>, String, String, i32, i64, i64)> = sqlx::query_as(
         "SELECT id, parent_id, name, path, depth, file_count, total_bytes
@@ -31,7 +32,7 @@ pub async fn get_directory_tree(
     .bind(lib_id)
     .fetch_all(&*pool)
     .await
-    .map_err(|e| e.to_string())?;
+    ?;
 
     // id -> DirNode（先建叶子，再挂到父）
     let mut nodes: HashMap<i64, DirNode> = HashMap::new();
@@ -83,7 +84,7 @@ pub async fn get_directory_tree(
 pub async fn get_directory_files(
     directory_id: i64,
     pool: State<'_, SqlitePool>,
-) -> Result<Vec<FileNode>, String> {
+) -> Result<Vec<FileNode>, AppError> {
     let rows: Vec<(i64, String, String, String, String, i64, String)> = sqlx::query_as(
         "SELECT f.id, f.rel_path, f.name, f.ext, f.kind, f.bytes, d.path
          FROM files f JOIN directories d ON d.id=f.directory_id
@@ -92,7 +93,7 @@ pub async fn get_directory_files(
     .bind(directory_id)
     .fetch_all(&*pool)
     .await
-    .map_err(|e| e.to_string())?;
+    ?;
     Ok(rows
         .into_iter()
         .map(|(id, rel, name, ext, kind, bytes, dir_path)| FileNode {
@@ -112,7 +113,7 @@ pub async fn get_directory_files(
 pub async fn get_subtree_files(
     directory_id: i64,
     pool: State<'_, SqlitePool>,
-) -> Result<Vec<FileNode>, String> {
+) -> Result<Vec<FileNode>, AppError> {
     let rows: Vec<(i64, String, String, String, String, i64, String)> = sqlx::query_as(
         "WITH RECURSIVE desc(id) AS (
             SELECT id FROM directories WHERE id=?
@@ -128,7 +129,7 @@ pub async fn get_subtree_files(
     .bind(directory_id)
     .fetch_all(&*pool)
     .await
-    .map_err(|e| e.to_string())?;
+    ?;
     Ok(rows
         .into_iter()
         .map(|(id, rel, name, ext, kind, bytes, dir_path)| FileNode {

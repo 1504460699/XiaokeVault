@@ -197,6 +197,7 @@ export default {
   },
   errors: {
     loadFailed: "加载失败：{msg}",
+    addLibraryFailed: "添加库失败",
     unknown: "未知错误",
   },
 };

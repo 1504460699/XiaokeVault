@@ -1,6 +1,7 @@
 mod asset_types;
 mod db;
 mod dedup;
+mod error;
 mod exporter;
 mod indexer;
 mod library;

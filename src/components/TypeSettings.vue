@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import { storeToRefs } from "pinia";
 import { useTypesStore } from "../stores/typesStore";
 import { listen } from "@tauri-apps/api/event";
+import { handleError } from "../utils/toast";
 import type { AssetType } from "../types/library";
 
 // 注意：函数参数也用 t（AssetType），故 i18n 用 tt 别名避免冲突
@@ -89,7 +90,7 @@ async function save() {
     });
     editing.value = null;
   } catch (e) {
-    alert(tt("types.saveFailed", { msg: String(e) }));
+    handleError(e, tt("types.saveFailed", { msg: "" }));
   }
 }
 
@@ -98,7 +99,7 @@ async function remove(kind: string) {
   try {
     await store.remove(kind);
   } catch (e) {
-    alert(String(e));
+    handleError(e);
   }
 }
 

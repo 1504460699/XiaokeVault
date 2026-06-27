@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { ipc } from "../ipc/library";
+import { handleError } from "../utils/toast";
 import type {
   Library,
   Category,
@@ -30,9 +31,13 @@ export const useLibraryStore = defineStore("library", () => {
   );
 
   async function loadLibraries() {
-    libraries.value = await ipc.listLibraries();
-    if (currentLibId.value === null && libraries.value.length > 0) {
-      currentLibId.value = libraries.value[0].id;
+    try {
+      libraries.value = await ipc.listLibraries();
+      if (currentLibId.value === null && libraries.value.length > 0) {
+        currentLibId.value = libraries.value[0].id;
+      }
+    } catch (e) {
+      handleError(e, "加载库列表失败");
     }
   }
 
@@ -53,9 +58,13 @@ export const useLibraryStore = defineStore("library", () => {
 
   async function loadCategories() {
     if (currentLibId.value === null) return;
-    categories.value = await ipc.getCategories(currentLibId.value);
-    if (currentCategoryId.value === null && categories.value.length > 0) {
-      currentCategoryId.value = categories.value[0].id;
+    try {
+      categories.value = await ipc.getCategories(currentLibId.value);
+      if (currentCategoryId.value === null && categories.value.length > 0) {
+        currentCategoryId.value = categories.value[0].id;
+      }
+    } catch (e) {
+      handleError(e, "加载分类失败");
     }
   }
 
@@ -68,12 +77,20 @@ export const useLibraryStore = defineStore("library", () => {
 
   async function loadPackages() {
     if (currentCategoryId.value === null) return;
-    packages.value = await ipc.getPackages(currentCategoryId.value);
+    try {
+      packages.value = await ipc.getPackages(currentCategoryId.value);
+    } catch (e) {
+      handleError(e, "加载素材包失败");
+    }
   }
 
   async function selectPackage(pkgId: number) {
     currentPkgId.value = pkgId;
-    files.value = await ipc.getPackageFiles(pkgId);
+    try {
+      files.value = await ipc.getPackageFiles(pkgId);
+    } catch (e) {
+      handleError(e, "加载文件列表失败");
+    }
   }
 
   async function backToPackages() {
@@ -90,7 +107,7 @@ export const useLibraryStore = defineStore("library", () => {
       await loadCategories();
       if (currentCategoryId.value !== null) await loadPackages();
     } catch (e: unknown) {
-      error.value = String(e);
+      handleError(e, "扫描失败");
     } finally {
       scanning.value = false;
     }

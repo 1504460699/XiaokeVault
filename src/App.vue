@@ -12,6 +12,7 @@ import SearchView from "./components/SearchView.vue";
 import ExportDialog from "./components/ExportDialog.vue";
 import DedupPanel from "./components/DedupPanel.vue";
 import TypeSettings from "./components/TypeSettings.vue";
+import Toast from "./components/Toast.vue";
 import { useLibraryStore } from "./stores/libraryStore";
 import { useSelectionStore } from "./stores/selectionStore";
 import { useSearchStore } from "./stores/searchStore";
@@ -128,5 +129,6 @@ async function onOpenExport() {
     <ExportDialog :show="showExport" @close="showExport = false" />
     <DedupPanel :show="showDedup" @close="showDedup = false" />
     <TypeSettings :show="showTypes" @close="showTypes = false" />
+    <Toast />
   </div>
 </template>

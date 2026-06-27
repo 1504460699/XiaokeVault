@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import { ipc } from "../ipc/library";
+import { handleError } from "../utils/toast";
 import type { DirNode, FileNode } from "../types/library";
 
 export const useTreeStore = defineStore("tree", () => {
@@ -19,13 +20,21 @@ export const useTreeStore = defineStore("tree", () => {
   }
 
   async function loadTree(libId: number) {
-    tree.value = await ipc.getDirectoryTree(libId);
+    try {
+      tree.value = await ipc.getDirectoryTree(libId);
+    } catch (e) {
+      handleError(e, "加载目录树失败");
+    }
   }
 
   async function selectDirectory(dirId: number) {
     currentDirId.value = dirId;
-    // 递归取该目录及所有子目录的文件（点中间文件夹也能看到全部内容）
-    files.value = await ipc.getSubtreeFiles(dirId);
+    try {
+      // 递归取该目录及所有子目录的文件（点中间文件夹也能看到全部内容）
+      files.value = await ipc.getSubtreeFiles(dirId);
+    } catch (e) {
+      handleError(e, "加载文件列表失败");
+    }
   }
 
   function clearFiles() {
