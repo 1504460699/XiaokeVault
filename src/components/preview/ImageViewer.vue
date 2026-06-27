@@ -79,8 +79,15 @@ function zoom(factor: number) {
       <button class="px-2 py-0.5 rounded bg-slate-600 hover:bg-slate-500" @click="zoom(1.25)">
         +
       </button>
-      <button class="px-2 py-0.5 rounded bg-slate-600 hover:bg-slate-500" @click="fit">
-        {{ t("preview.fit") }}
+      <button
+        class="px-2 py-0.5 rounded bg-slate-600 hover:bg-slate-500 flex items-center justify-center"
+        :title="t('preview.fit')"
+        @click="fit"
+      >
+        <!-- 适应/contain：方框内四角向内的箭头 -->
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <path d="M2 5 V2 H5 M11 2 H14 V5 M14 11 V14 H11 M5 14 H2 V11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
       </button>
       <button class="px-2 py-0.5 rounded bg-slate-600 hover:bg-slate-500" @click="reset">
         100%
