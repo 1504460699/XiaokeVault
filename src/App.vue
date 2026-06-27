@@ -80,6 +80,16 @@ watch(locale, () => {
   syncWindowTitle();
 });
 
+// 手动扫描完成（scanReport 变化）后刷新目录树
+watch(
+  () => store.scanReport,
+  async () => {
+    if (store.currentLibId !== null) {
+      await treeStore.loadTree(store.currentLibId);
+    }
+  },
+);
+
 // 切换分类时刷新该分类的勾选状态
 watch(
   () => store.currentCategoryId,

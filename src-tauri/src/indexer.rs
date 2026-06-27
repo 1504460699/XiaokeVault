@@ -2,7 +2,7 @@ use crate::asset_types::Registry;
 use crate::scanner::{self, ScanEntry};
 use crate::tree_scanner;
 use serde::Serialize;
-use sqlx::SqlitePool;
+use sqlx::{Acquire, SqlitePool};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
@@ -196,12 +196,17 @@ pub async fn scan_tree_into(
     let mut unknown: HashMap<String, u64> = HashMap::new();
     let result = tree_scanner::scan_library_tree(root);
 
+    // 树视图文件不关联 package，package_id 用 0（占位），需临时关外键检查避免约束失败。
+    // 取独占连接：在同一连接上关外键 → 事务 → 开外键。
+    let mut conn = pool.acquire().await?;
+    sqlx::query("PRAGMA foreign_keys=OFF").execute(&mut *conn).await?;
+
     let mut new = 0u64;
     let mut updated = 0u64;
     let mut deleted = 0u64;
     let mut total_written = 0u64;
 
-    let mut tx = pool.begin().await?;
+    let mut tx = conn.begin().await?;
 
     // === 1. 写 directories 表 ===
     // path -> id 映射，供 files.directory_id 用
@@ -333,6 +338,8 @@ pub async fn scan_tree_into(
     }
 
     tx.commit().await?;
+    // 恢复外键检查（同一连接）
+    sqlx::query("PRAGMA foreign_keys=ON").execute(&mut *conn).await?;
 
     Ok(ScanReport {
         new,
