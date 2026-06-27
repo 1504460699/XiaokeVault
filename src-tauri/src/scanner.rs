@@ -104,3 +104,28 @@ pub fn scan_library(root: &Path) -> Vec<ScanEntry> {
 
     entries.into_iter().flatten().collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 仅测扫描速度（不写库），隔离性能瓶颈。
+    #[test]
+    fn bench_scan_only() {
+        let root = Path::new("D:\\Xiaoke\\GameAssets");
+        if !root.exists() {
+            eprintln!("跳过：GameAssets 不存在");
+            return;
+        }
+        let start = std::time::Instant::now();
+        let entries = scan_library(root);
+        let dur = start.elapsed();
+        eprintln!(
+            "扫描完成: {} 个文件, 耗时 {} ms",
+            entries.len(),
+            dur.as_millis()
+        );
+        assert!(entries.len() > 40000, "文件数 {}", entries.len());
+        assert!(dur.as_millis() < 60000, "扫描应 < 1 分钟, 实际 {} ms", dur.as_millis());
+    }
+}
