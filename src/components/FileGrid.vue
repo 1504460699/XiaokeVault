@@ -5,8 +5,8 @@ import { useVirtualizer } from "@tanstack/vue-virtual";
 import { useLibraryStore } from "../stores/libraryStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { useSearchStore } from "../stores/searchStore";
-import { getFileUrl } from "../ipc/fileUrl";
 import { viewerForKind, iconForViewer, canShowThumb } from "../utils/viewer";
+import ThumbnailImg from "./preview/ThumbnailImg.vue";
 import type { FileNode } from "../types/library";
 
 // 外部请求定位到的文件 id（来自搜索定位）
@@ -183,11 +183,9 @@ async function onToggleFile(e: Event, f: FileNode) {
             <div
               class="flex-1 flex items-center justify-center bg-slate-900 overflow-hidden"
             >
-              <img
+              <ThumbnailImg
                 v-if="canShowThumb(viewerForKind(f.kind))"
-                :src="getFileUrl(f)"
-                class="max-w-full max-h-full object-contain"
-                loading="lazy"
+                :file="f"
               />
               <div v-else class="text-3xl">
                 {{ iconForViewer(viewerForKind(f.kind)) }}

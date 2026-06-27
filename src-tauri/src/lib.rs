@@ -60,6 +60,7 @@ pub fn run() {
             dedup::remove_duplicate,
             dedup::remove_all_duplicates,
             preview::get_model_glb,
+            preview::get_thumbnail,
             asset_types::list_asset_types,
             asset_types::upsert_asset_type,
             asset_types::delete_asset_type,
