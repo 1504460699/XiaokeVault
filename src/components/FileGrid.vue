@@ -17,17 +17,41 @@ const COLS = 6;
 const ROW_H = 150;
 const GAP = 12;
 
+// 搜索与过滤状态
+const searchQuery = ref("");
+const filterKind = ref(""); // 空=全部
+
+// 过滤后的文件（按文件名 + 类型）
+const filteredFiles = computed<FileNode[]>(() => {
+  const q = searchQuery.value.trim().toLowerCase();
+  const k = filterKind.value;
+  return files.value.filter((f) => {
+    if (k && f.kind !== k) return false;
+    if (q && !f.name.toLowerCase().includes(q)) return false;
+    return true;
+  });
+});
+
+// 当前可用的类型（供下拉，从当前包文件动态生成）
+const availableKinds = computed(() => {
+  const set = new Map<string, number>();
+  for (const f of files.value) {
+    set.set(f.kind, (set.get(f.kind) ?? 0) + 1);
+  }
+  return Array.from(set.entries()).map(([kind, count]) => ({ kind, count }));
+});
+
 // 当前包是否整包勾选
 const pkgAllSelected = computed(() => {
   if (store.currentPkgId === null) return false;
   return pkgStates.value[store.currentPkgId] === "all";
 });
 
-// 把文件切成行（每行 COLS 个）
+// 把文件切成行（每行 COLS 个）——基于过滤后的文件
 const rows = computed<FileNode[][]>(() => {
-  const n = files.value.length;
+  const n = filteredFiles.value.length;
   const r: FileNode[][] = [];
-  for (let i = 0; i < n; i += COLS) r.push(files.value.slice(i, i + COLS));
+  for (let i = 0; i < n; i += COLS) r.push(filteredFiles.value.slice(i, i + COLS));
   return r;
 });
 
@@ -35,7 +59,7 @@ const parentRef = ref<HTMLElement | null>(null);
 
 const virtualizer = useVirtualizer(
   computed(() => ({
-    count: Math.ceil(files.value.length / COLS),
+    count: Math.ceil(filteredFiles.value.length / COLS),
     getScrollElement: () => parentRef.value,
     estimateSize: () => ROW_H + GAP,
     overscan: 4,
@@ -60,13 +84,32 @@ async function onToggleFile(e: Event, f: FileNode) {
 <template>
   <div class="flex-1 flex flex-col overflow-hidden">
     <div
-      class="px-4 py-2 text-sm text-slate-400 border-b border-slate-700 shrink-0 flex items-center gap-2"
+      class="px-4 py-2 text-sm text-slate-400 border-b border-slate-700 shrink-0 flex items-center gap-2 flex-wrap"
     >
       <button class="text-sky-400 hover:underline" @click="store.backToPackages()">
         ← 返回包列表
       </button>
       <span>/ {{ currentPackage?.name }}</span>
-      <span class="ml-auto">{{ files.length }} 文件</span>
+      <span class="text-slate-500">
+        {{ filteredFiles.length }}/{{ files.length }} 文件
+      </span>
+      <div class="ml-auto flex items-center gap-2">
+        <select
+          v-model="filterKind"
+          class="bg-slate-700 text-slate-200 px-2 py-0.5 rounded text-xs"
+        >
+          <option value="">全部类型</option>
+          <option v-for="k in availableKinds" :key="k.kind" :value="k.kind">
+            {{ k.kind }} ({{ k.count }})
+          </option>
+        </select>
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="搜索文件名…"
+          class="bg-slate-700 text-slate-200 px-2 py-0.5 rounded text-xs w-40"
+        />
+      </div>
     </div>
     <div ref="parentRef" class="flex-1 overflow-auto p-3">
       <div
