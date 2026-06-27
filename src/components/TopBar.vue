@@ -48,12 +48,14 @@ function onLangChange(e: Event) {
 
 <template>
   <header
-    class="flex items-center gap-3 px-4 h-12 bg-slate-800 border-b border-slate-700 shrink-0"
+    class="flex items-center gap-2 px-3 h-12 bg-slate-800 border-b border-slate-700 shrink-0"
     data-tauri-drag-region
   >
-    <span class="font-bold text-sky-400">{{ t("brand.name") }}</span>
+    <!-- 品牌（不可压缩）-->
+    <span class="font-bold text-sky-400 shrink-0 whitespace-nowrap">{{ t("brand.name") }}</span>
+    <!-- 库选择 -->
     <select
-      class="bg-slate-700 text-slate-100 px-2 py-1 rounded text-sm"
+      class="bg-slate-700 text-slate-100 px-2 py-1 rounded text-sm shrink-0 max-w-[140px] truncate"
       :value="currentLibId ?? ''"
       @change="onLibChange"
     >
@@ -62,41 +64,46 @@ function onLangChange(e: Event) {
         {{ lib.name }}
       </option>
     </select>
-    <button
-      class="px-3 py-1 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-sm"
-      :disabled="scanning || currentLibId === null"
-      @click="onScan"
-    >
-      {{ scanning ? t("topbar.scanning") : t("topbar.scan") }}
-    </button>
-    <button
-      class="px-3 py-1 rounded bg-amber-700 hover:bg-amber-600 disabled:opacity-50 text-sm"
-      :disabled="currentLibId === null"
-      @click="$emit('dedup')"
-    >
-      {{ t("topbar.dedup") }}
-    </button>
-    <button
-      class="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-sm"
-      @click="$emit('types')"
-    >
-      {{ t("topbar.types") }}
-    </button>
+    <!-- 主功能按钮组 -->
+    <div class="flex items-center gap-1.5 shrink-0">
+      <button
+        class="px-2.5 py-1 rounded bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-sm whitespace-nowrap"
+        :disabled="scanning || currentLibId === null"
+        @click="onScan"
+      >
+        {{ scanning ? t("topbar.scanning") : t("topbar.scan") }}
+      </button>
+      <button
+        class="px-2.5 py-1 rounded bg-amber-700 hover:bg-amber-600 disabled:opacity-50 text-sm whitespace-nowrap"
+        :disabled="currentLibId === null"
+        @click="$emit('dedup')"
+      >
+        {{ t("topbar.dedup") }}
+      </button>
+      <button
+        class="px-2.5 py-1 rounded bg-slate-700 hover:bg-slate-600 text-sm whitespace-nowrap"
+        @click="$emit('types')"
+      >
+        {{ t("topbar.types") }}
+      </button>
+      <button
+        class="px-2.5 py-1 rounded bg-slate-700 hover:bg-slate-600 text-sm whitespace-nowrap"
+        @click="onAddLibrary"
+      >
+        {{ t("topbar.addLibrary") }}
+      </button>
+    </div>
+    <!-- 搜索框：弹性占位，最小宽度 -->
     <input
       v-model="search.query"
       type="text"
       :placeholder="t('topbar.searchPlaceholder')"
-      class="bg-slate-700 text-slate-100 px-2 py-1 rounded text-sm w-48"
+      class="bg-slate-700 text-slate-100 px-2 py-1 rounded text-sm flex-1 min-w-[120px] max-w-[280px]"
       @keyup.enter="search.run()"
     />
-    <button
-      class="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-sm"
-      @click="onAddLibrary"
-    >
-      {{ t("topbar.addLibrary") }}
-    </button>
-    <div class="ml-auto text-xs text-slate-400 flex items-center gap-2">
-      <span v-if="autoScanning" class="text-sky-400 animate-pulse">{{ t("topbar.autoScanning") }}</span>
+    <!-- 右侧状态区 -->
+    <div class="flex items-center gap-2 shrink-0 text-xs text-slate-400">
+      <span v-if="autoScanning" class="text-sky-400 animate-pulse whitespace-nowrap">{{ t("topbar.autoScanning") }}</span>
       <select
         class="bg-slate-700 text-slate-100 px-1 py-0.5 rounded text-xs"
         :value="locale"
@@ -104,21 +111,20 @@ function onLangChange(e: Event) {
         :title="t('topbar.language')"
       >
         <option value="zh">中文</option>
-        <option value="en">English</option>
+        <option value="en">EN</option>
       </select>
-      <span v-if="scanReport"
-        >{{ t("topbar.lastScan") }}{{ scanReport.total_files }} {{ t("common.file") }} /
-        {{ Math.round(scanReport.duration_ms / 1000) }}s</span
+      <span v-if="scanReport" class="hidden xl:inline whitespace-nowrap"
+        >{{ t("topbar.lastScan") }}{{ scanReport.total_files }}/{{ Math.round(scanReport.duration_ms / 1000) }}s</span
       >
       <button
         v-if="scanReport && scanReport.unknown_extensions.length > 0"
-        class="px-2 py-0.5 rounded bg-amber-700 hover:bg-amber-600 text-amber-50"
+        class="px-2 py-0.5 rounded bg-amber-700 hover:bg-amber-600 text-amber-50 whitespace-nowrap"
         :title="scanReport.unknown_extensions.map((e) => '.' + e[0] + '×' + e[1]).join(' ')"
         @click="$emit('types')"
       >
         {{ t("topbar.foundUnknown", { n: scanReport.unknown_extensions.length }) }}
       </button>
-      <span v-if="error" class="text-red-400">⚠ {{ error }}</span>
+      <span v-if="error" class="text-red-400 truncate max-w-[160px]" :title="error">⚠ {{ error }}</span>
     </div>
     <WindowControls />
   </header>
