@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+/* 桌面应用基础：禁用文本选择(除输入框)、深色背景 */
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+body {
+  user-select: none;
+  -webkit-user-select: none;
+}
+input,
+textarea {
+  user-select: text;
+}
