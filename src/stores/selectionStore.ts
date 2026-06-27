@@ -36,6 +36,16 @@ export const useSelectionStore = defineStore("selection", () => {
     currentProjectId.value = id;
   }
 
+  /// 确保存在一个当前项目；没有则创建默认项目
+  async function ensureProject() {
+    if (currentProjectId.value !== null) return;
+    if (projects.value.length === 0) {
+      await createProject("默认项目", "");
+    } else {
+      currentProjectId.value = projects.value[0].id;
+    }
+  }
+
   function setPreview(id: number | null) {
     previewFileId.value = id;
   }
@@ -93,6 +103,7 @@ export const useSelectionStore = defineStore("selection", () => {
     summary,
     loadProjects,
     createProject,
+    ensureProject,
     selectProject,
     setPreview,
     togglePackage,

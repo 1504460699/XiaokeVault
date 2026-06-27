@@ -10,7 +10,7 @@ import type { FileNode } from "../types/library";
 const store = useLibraryStore();
 const sel = useSelectionStore();
 const { files, currentPackage } = storeToRefs(store);
-const { currentProjectId, pkgStates, selectedFileIds } = storeToRefs(sel);
+const { pkgStates, selectedFileIds } = storeToRefs(sel);
 
 const COLS = 6;
 const ROW_H = 150;
@@ -46,10 +46,7 @@ const totalSize = computed(() => virtualizer.value.getTotalSize());
 
 async function onToggleFile(e: Event, f: FileNode) {
   e.stopPropagation();
-  if (currentProjectId.value === null) {
-    alert("请先点击右上角“导出”创建项目");
-    return;
-  }
+  await sel.ensureProject();
   if (pkgAllSelected.value) {
     alert("该包已整包勾选。如需精确控制，请先取消整包勾选。");
     return;

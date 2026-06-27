@@ -24,11 +24,10 @@ function fmtBytes(b: number): string {
       {{ summary.package_count }} 包 · {{ summary.file_count }} 文件 · {{ fmtBytes(summary.total_bytes) }}
     </div>
     <button
-      class="w-full mt-1 px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-xs"
-      :disabled="currentProjectId === null"
+      class="w-full mt-1 px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-xs"
       @click="$emit('export')"
     >
-      导出
+      {{ currentProjectId === null ? "创建项目并导出" : "导出" }}
     </button>
   </div>
 </template>

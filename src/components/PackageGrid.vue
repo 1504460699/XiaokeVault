@@ -7,7 +7,7 @@ import FileGrid from "./FileGrid.vue";
 const store = useLibraryStore();
 const sel = useSelectionStore();
 const { currentPkgId, packages } = storeToRefs(store);
-const { pkgStates, currentProjectId } = storeToRefs(sel);
+const { pkgStates } = storeToRefs(sel);
 
 function fmtBytes(b: number): string {
   if (b > 1e9) return (b / 1e9).toFixed(1) + " GB";
@@ -18,10 +18,7 @@ function fmtBytes(b: number): string {
 
 async function onTogglePkg(e: Event, pkgId: number) {
   e.stopPropagation();
-  if (currentProjectId.value === null) {
-    alert("请先点击右上角“导出”创建项目");
-    return;
-  }
+  await sel.ensureProject();
   const isAll = pkgStates.value[pkgId] === "all";
   await sel.togglePackage(pkgId, isAll);
   if (store.currentCategoryId !== null) {
