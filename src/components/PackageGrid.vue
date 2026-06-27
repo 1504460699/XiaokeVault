@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { storeToRefs } from "pinia";
+import { useI18n } from "vue-i18n";
 import { useLibraryStore } from "../stores/libraryStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { useSearchStore } from "../stores/searchStore";
 import FileGrid from "./FileGrid.vue";
+
+const { t } = useI18n();
 
 const store = useLibraryStore();
 const sel = useSelectionStore();
@@ -41,7 +44,7 @@ async function onTogglePkg(e: Event, pkgId: number) {
       <div
         class="px-4 py-2 text-sm text-slate-400 border-b border-slate-700 shrink-0"
       >
-        {{ packages.length }} 个素材包
+        {{ t("packageGrid.packageCount", { n: packages.length }) }}
       </div>
       <div
         class="flex-1 overflow-y-auto p-4 grid gap-3 content-start"
@@ -63,10 +66,10 @@ async function onTogglePkg(e: Event, pkgId: number) {
             <span class="font-medium text-sm truncate flex-1">{{ pkg.name }}</span>
           </div>
           <div class="text-xs text-slate-400 mt-1">
-            {{ pkg.file_count }} 文件 · {{ fmtBytes(pkg.total_bytes) }}
+            {{ pkg.file_count }} {{ t("common.files") }} · {{ fmtBytes(pkg.total_bytes) }}
           </div>
           <div v-if="pkg.has_zip" class="text-xs text-amber-400 mt-1">
-            ⚠ 含压缩包
+            ⚠ {{ t("packageGrid.hasZip") }}
           </div>
           <div v-if="pkg.license" class="text-xs text-emerald-400 mt-1">
             {{ pkg.license }}
@@ -76,7 +79,7 @@ async function onTogglePkg(e: Event, pkgId: number) {
           v-if="packages.length === 0"
           class="col-span-full text-center text-slate-500 py-8"
         >
-          选择左侧分类查看素材包
+          {{ t("fileGrid.selectLeftCategory") }}
         </div>
       </div>
     </template>

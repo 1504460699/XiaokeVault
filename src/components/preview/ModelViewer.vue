@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
@@ -9,9 +10,10 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import type { FileNode } from "../../types/library";
 
+const { t } = useI18n();
 const props = defineProps<{ file: FileNode }>();
 const containerRef = ref<HTMLElement | null>(null);
-const status = ref("加载中…");
+const status = ref(t("preview.loadingModel"));
 const wireframe = ref(false);
 
 let renderer: THREE.WebGLRenderer | null = null;
@@ -84,7 +86,7 @@ function addObject(obj: THREE.Object3D) {
 async function loadModel(f: FileNode) {
   clearScene();
   wireframe.value = false;
-  status.value = "加载中…";
+  status.value = t("preview.loadingModel");
   const url = convertFileSrc(f.abs_path);
   const ext = f.ext.toLowerCase();
   try {
@@ -104,30 +106,29 @@ async function loadModel(f: FileNode) {
       } catch (fbxErr) {
         const msg = String(fbxErr);
         if (msg.includes("not supported") || msg.includes("version")) {
-          status.value =
-            "此 FBX 文件版本过低（FBX 6.x），预览仅支持 FBX 7.0+。可用 Blender 或 Maya 转换为 FBX 7 / glb。";
+          status.value = t("preview.fbxVersionError");
         } else {
           throw fbxErr;
         }
       }
     } else if (ext === "blend") {
-      status.value = "正在用 Blender 转换为 glb…（首次较慢）";
+      status.value = t("preview.convertingGlb");
       const { getModelGlb } = await import("../../ipc/model");
       const res = await getModelGlb(f.abs_path);
       if (res.source === "error" || !res.path) {
         status.value = res.message;
       } else {
-        status.value = "加载转换后的 glb…";
+        status.value = t("preview.loadingModel");
         const gltf = await loadAny(new GLTFLoader() as any, convertFileSrc(res.path));
         addObject((gltf as any).scene);
       }
     } else if (ext === "mtl" || ext === "dds" || ext === "tga") {
-      status.value = `${ext} 是 3D 模型的配套资源（材质/贴图），非独立模型`;
+      status.value = t("preview.auxResource", { ext });
     } else {
-      status.value = `${ext} 暂不支持 3D 预览`;
+      status.value = t("preview.unsupported3d") + ` (${ext})`;
     }
   } catch (e) {
-    status.value = "加载失败：" + String(e);
+    status.value = t("preview.loadFailed", { msg: String(e) });
   }
 }
 
@@ -172,9 +173,9 @@ onUnmounted(() => {
   <div class="w-full h-full flex flex-col">
     <div class="flex items-center gap-2 px-2 py-1 bg-slate-800 border-b border-slate-700 text-xs shrink-0">
       <button class="px-2 py-0.5 rounded bg-slate-600 hover:bg-slate-500" @click="toggleWireframe">
-        {{ wireframe ? "实体" : "线框" }}
+        {{ wireframe ? t("preview.solid") : t("preview.wireframe") }}
       </button>
-      <span class="text-slate-500">拖拽旋转 · 滚轮缩放</span>
+      <span class="text-slate-500">{{ t("preview.modelRotateHint") }}</span>
     </div>
     <div ref="containerRef" class="flex-1 relative">
       <div

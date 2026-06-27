@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { storeToRefs } from "pinia";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useDedupStore } from "../stores/dedupStore";
 import { useLibraryStore } from "../stores/libraryStore";
 
+const { t } = useI18n();
 const props = defineProps<{ show: boolean }>();
 const emit = defineEmits<{ close: [] }>();
 
@@ -21,29 +23,29 @@ async function onScan() {
 }
 
 async function pickBackupDir() {
-  const d = await open({ directory: true, title: "选择备份位置（删除的文件会移到这里）" });
+  const d = await open({ directory: true, title: t("dedup.backupLocation") });
   if (d && !Array.isArray(d)) backupRoot.value = d;
 }
 
 async function onRemove(groupId: number, fileId: number | null) {
   if (fileId === null) return;
   if (!backupRoot.value) {
-    alert("请先选择备份位置");
+    alert(t("dedup.selectFirst"));
     return;
   }
-  if (!confirm("确认删除？文件会移到备份目录，可恢复。")) return;
+  if (!confirm(t("dedup.confirmRemove"))) return;
   await dedup.removeMember(fileId, groupId, backupRoot.value);
 }
 
 async function onRemoveAll() {
   if (groups.value.length === 0) return;
   if (!backupRoot.value) {
-    alert("请先选择备份位置");
+    alert(t("dedup.selectFirst"));
     return;
   }
-  if (!confirm(`确认一键清理 ${report.value?.removable_files ?? 0} 个冗余文件？\n文件会移到：${backupRoot.value}`)) return;
+  if (!confirm(t("dedup.confirmRemoveAll", { n: report.value?.removable_files ?? 0, path: backupRoot.value }))) return;
   const r = await dedup.removeAll(backupRoot.value);
-  lastResult.value = `已清理 ${r.removed} 个文件${r.failed ? `，${r.failed} 个失败` : ""}`;
+  lastResult.value = t("dedup.cleaned", { n: r.removed, failed: r.failed ? t("dedup.cleanedFailedPart", { n: r.failed }) : "" });
 }
 
 // 跳转到包（关闭面板，定位到该包）
@@ -72,46 +74,44 @@ function fmtBytes(b: number): string {
         class="bg-slate-800 rounded-lg p-6 w-[640px] max-h-[85vh] flex flex-col text-slate-100"
       >
         <div class="flex items-center mb-3">
-          <h2 class="text-lg font-bold flex-1">去重整理</h2>
+          <h2 class="text-lg font-bold flex-1">{{ t("dedup.title") }}</h2>
           <button
             class="px-3 py-1 rounded bg-sky-600 hover:bg-sky-500 text-sm disabled:opacity-50"
             :disabled="scanning || lib.currentLibId === null"
             @click="onScan"
           >
-            {{ scanning ? "检测中…" : groups.length ? "重新检测" : "开始检测" }}
+            {{ scanning ? t("dedup.scanning") : groups.length ? t("dedup.rescan") : t("dedup.startScan") }}
           </button>
         </div>
 
         <!-- 备份位置 -->
         <div class="mb-3">
-          <label class="block text-xs text-slate-400 mb-1">删除备份位置（删掉的文件移到这里，可恢复）</label>
+          <label class="block text-xs text-slate-400 mb-1">{{ t("dedup.backupLocation") }}</label>
           <div class="flex gap-2">
             <input
               :value="backupRoot"
               readonly
-              placeholder="未选择则用应用默认 trash 目录"
+              :placeholder="t('dedup.useDefault')"
               class="flex-1 bg-slate-700 rounded px-2 py-1 text-xs"
             />
             <button
               class="px-3 py-1 rounded bg-slate-600 hover:bg-slate-500 text-xs"
               @click="pickBackupDir"
             >
-              选择
+              {{ t("dedup.selectBtn") }}
             </button>
           </div>
         </div>
 
         <div v-if="report" class="text-xs text-slate-400 mb-2">
-          发现 {{ report.groups }} 组重复 · 可清理
-          {{ report.removable_files }} 文件 ·
-          {{ fmtBytes(report.removable_bytes) }}
+          {{ t("dedup.foundReport", { g: report.groups, f: report.removable_files, b: fmtBytes(report.removable_bytes) }) }}
           <button
             v-if="groups.length > 0"
             class="ml-3 px-2 py-0.5 rounded bg-red-700 hover:bg-red-600 text-xs"
             :disabled="removing"
             @click="onRemoveAll"
           >
-            {{ removing ? "清理中…" : "一键清理全部" }}
+            {{ removing ? t("dedup.cleaning") : t("dedup.cleanAll") }}
           </button>
         </div>
 
@@ -127,7 +127,7 @@ function fmtBytes(b: number): string {
               class="text-sm mb-1"
               :class="g.reason === 'likely_backup' ? 'text-orange-400' : 'text-amber-400'"
             >
-              ⚠ {{ g.reason === 'likely_backup' ? '疑似备份（需人工确认）' : '冗余文件' }}
+              ⚠ {{ g.reason === 'likely_backup' ? t('dedup.reasonLikelyBackupHint') : t('dedup.redundant') }}
             </div>
             <div class="text-xs text-slate-300 mb-2">{{ g.detail }}</div>
             <!-- likely_backup：人工处理按钮 -->
@@ -136,13 +136,13 @@ function fmtBytes(b: number): string {
                 class="px-2 py-0.5 rounded bg-slate-600 hover:bg-slate-500 text-xs whitespace-nowrap"
                 @click="dedup.dismissGroup(g.id)"
               >
-                忽略（不是重复）
+                {{ t("dedup.dismiss") }}
               </button>
               <button
                 class="px-2 py-0.5 rounded bg-emerald-700 hover:bg-emerald-600 text-xs whitespace-nowrap"
                 @click="dedup.dismissGroup(g.id)"
               >
-                确认是备份（保留，不再提醒）
+                {{ t("dedup.confirmBackup") }}
               </button>
             </div>
             <div
@@ -158,16 +158,16 @@ function fmtBytes(b: number): string {
                 class="px-2 py-0.5 rounded bg-red-700 hover:bg-red-600 text-xs whitespace-nowrap"
                 @click="onRemove(g.id, m.file_id)"
               >
-                删除
+                {{ t("common.delete") }}
               </button>
               <span v-else-if="g.reason === 'likely_backup'" class="flex items-center gap-1">
-                <span class="text-slate-500">需人工判断</span>
+                <span class="text-slate-500">{{ t("dedup.needManualCheck") }}</span>
                 <button
                   v-if="m.package_id"
                   class="px-1.5 py-0.5 rounded bg-slate-600 hover:bg-sky-600 text-slate-300 text-xs whitespace-nowrap"
                   @click="locatePackage(m.package_id)"
                 >
-                  打开包
+                  {{ t("dedup.locateToPkg") }}
                 </button>
               </span>
             </div>
@@ -176,10 +176,10 @@ function fmtBytes(b: number): string {
             v-if="groups.length === 0 && report"
             class="text-center text-slate-500 py-8"
           >
-            ✓ 未发现重复
+            ✓ {{ t("dedup.noDup") }}
           </div>
           <div v-if="!report" class="text-center text-slate-500 py-8">
-            点击「开始检测」扫描重复
+            {{ t("dedup.clickToScan") }}
           </div>
         </div>
 
@@ -188,7 +188,7 @@ function fmtBytes(b: number): string {
             class="px-4 py-1 rounded bg-slate-600 hover:bg-slate-500 text-sm"
             @click="emit('close')"
           >
-            关闭
+            {{ t("common.close") }}
           </button>
         </div>
       </div>

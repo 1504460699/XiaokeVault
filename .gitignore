@@ -33,3 +33,7 @@ src-tauri/gen
 *.zip
 dist-release/
 XiaokeTools-portable-*.zip
+
+# Tauri icon 生成的移动端图标（本项目是 Windows 桌面应用，不需要）
+src-tauri/icons/android/
+src-tauri/icons/ios/

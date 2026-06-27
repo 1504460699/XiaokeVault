@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, watch, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
 import { getFileUrl } from "../../ipc/fileUrl";
 import type { FileNode } from "../../types/library";
 
+const { t } = useI18n();
 const props = defineProps<{ file: FileNode }>();
 const fontFamily = ref("");
 let styleEl: HTMLStyleElement | null = null;
@@ -47,6 +49,6 @@ onUnmounted(() => {
     >
       {{ SAMPLE_CN }}
     </div>
-    <div class="text-xs text-slate-500 px-2">⚠ 字体可能不支持中文</div>
+    <div class="text-xs text-slate-500 px-2">⚠ {{ t("preview.fontNotSupportZh") }}</div>
   </div>
 </template>

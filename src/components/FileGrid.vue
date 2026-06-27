@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
+import { useI18n } from "vue-i18n";
 import { useVirtualizer } from "@tanstack/vue-virtual";
 import { useLibraryStore } from "../stores/libraryStore";
 import { useSelectionStore } from "../stores/selectionStore";
@@ -8,6 +9,8 @@ import { useSearchStore } from "../stores/searchStore";
 import { viewerForKind, iconForViewer, canShowThumb } from "../utils/viewer";
 import ThumbnailImg from "./preview/ThumbnailImg.vue";
 import type { FileNode } from "../types/library";
+
+const { t } = useI18n();
 
 // 外部请求定位到的文件 id（来自搜索定位）
 const props = defineProps<{ locateFileId?: number | null }>();
@@ -105,7 +108,7 @@ async function onToggleFile(e: Event, f: FileNode) {
   e.stopPropagation();
   await sel.ensureProject();
   if (pkgAllSelected.value) {
-    alert("该包已整包勾选。如需精确控制，请先取消整包勾选。");
+    alert(t("fileGrid.pkgAllSelectedAlert"));
     return;
   }
   const isSel = selectedFileIds.value.has(f.id);
@@ -119,18 +122,18 @@ async function onToggleFile(e: Event, f: FileNode) {
       class="px-4 py-2 text-sm text-slate-400 border-b border-slate-700 shrink-0 flex items-center gap-2 flex-wrap"
     >
       <button class="text-sky-400 hover:underline" @click="onBack()">
-        ← {{ search.active ? '返回搜索结果' : '返回包列表' }}
+        ← {{ search.active ? t('fileGrid.backToResults') : t('fileGrid.backToPackages') }}
       </button>
       <span>/ {{ currentPackage?.name }}</span>
       <span class="text-slate-500">
-        {{ filteredFiles.length }}/{{ files.length }} 文件
+        {{ t('fileGrid.fileCount', { shown: filteredFiles.length, total: files.length }) }}
       </span>
       <div class="ml-auto flex items-center gap-2">
         <select
           v-model="filterKind"
           class="bg-slate-700 text-slate-200 px-2 py-0.5 rounded text-xs"
         >
-          <option value="">全部类型</option>
+          <option value="">{{ t('fileGrid.allTypes') }}</option>
           <option v-for="k in availableKinds" :key="k.kind" :value="k.kind">
             {{ k.kind }} ({{ k.count }})
           </option>
@@ -138,7 +141,7 @@ async function onToggleFile(e: Event, f: FileNode) {
         <input
           v-model="searchQuery"
           type="text"
-          placeholder="搜索文件名…"
+          :placeholder="t('search.placeholder')"
           class="bg-slate-700 text-slate-200 px-2 py-0.5 rounded text-xs w-40"
         />
       </div>

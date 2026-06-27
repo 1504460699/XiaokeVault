@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { getFileUrl } from "../../ipc/fileUrl";
 import type { FileNode } from "../../types/library";
 
+const { t } = useI18n();
 const props = defineProps<{ file: FileNode }>();
 
 const scale = ref(1);
@@ -67,12 +69,12 @@ function zoom(factor: number) {
         +
       </button>
       <button class="px-2 py-0.5 rounded bg-slate-600 hover:bg-slate-500" @click="fit">
-        适应
+        {{ t("preview.fit") }}
       </button>
       <button class="px-2 py-0.5 rounded bg-slate-600 hover:bg-slate-500" @click="reset">
         100%
       </button>
-      <span class="text-slate-500 ml-auto">滚轮缩放 · 拖拽移动</span>
+      <span class="text-slate-500 ml-auto">{{ t("preview.imageZoomHint") }}</span>
     </div>
     <!-- 画布 -->
     <div

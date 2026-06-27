@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent } from "vue";
 import { storeToRefs } from "pinia";
+import { useI18n } from "vue-i18n";
 import { useLibraryStore } from "../stores/libraryStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { viewerForKind } from "../utils/viewer";
 import SelectionBar from "./SelectionBar.vue";
+
+const { t } = useI18n();
 import ImageViewer from "./preview/ImageViewer.vue";
 // ModelViewer 含 three.js，按需懒加载（进 3D 预览才加载）
 const ModelViewer = defineAsyncComponent(() => import("./preview/ModelViewer.vue"));
@@ -41,7 +44,7 @@ function fmtBytes(b: number): string {
   >
     <SelectionBar @export="$emit('export')" />
     <div class="px-3 py-2 text-sm text-slate-300 border-b border-slate-700">
-      预览
+      {{ t("preview.title") }}
     </div>
     <div v-if="file" class="flex-1 flex flex-col overflow-hidden">
       <!-- 图片/动画/矢量：可缩放的 ImageViewer -->
@@ -75,7 +78,7 @@ function fmtBytes(b: number): string {
       v-else
       class="flex-1 flex items-center justify-center text-slate-500 text-sm"
     >
-      点击文件预览
+      {{ t("preview.noSelection") }}
     </div>
   </aside>
 </template>

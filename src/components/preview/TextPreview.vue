@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { getFileUrl } from "../../ipc/fileUrl";
 import type { FileNode } from "../../types/library";
 
+const { t } = useI18n();
 const props = defineProps<{ file: FileNode }>();
 const content = ref("");
 const loading = ref(false);
@@ -23,7 +25,7 @@ watch(
       content.value =
         text.length > TRUNCATE_BYTES
           ? text.slice(0, TRUNCATE_BYTES) +
-            `\n\n…（已截断，共 ${text.length} 字符）`
+            `\n\n${t("preview.truncated", { n: text.length })}`
           : text;
     } catch (e) {
       error.value = String(e);
@@ -37,8 +39,8 @@ watch(
 
 <template>
   <div class="w-full text-xs text-slate-300 font-mono">
-    <div v-if="loading" class="text-slate-500">读取中…</div>
-    <div v-else-if="error" class="text-red-400">读取失败：{{ error }}</div>
+    <div v-if="loading" class="text-slate-500">{{ t("common.loading") }}</div>
+    <div v-else-if="error" class="text-red-400">{{ t("errors.loadFailed", { msg: error }) }}</div>
     <pre
       v-else
       class="whitespace-pre-wrap break-all bg-slate-900 p-2 rounded w-full"

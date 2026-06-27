@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
+import { useI18n } from "vue-i18n";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+
+const { t } = useI18n();
 
 const appWindow = getCurrentWindow();
 const maximized = ref(false);
@@ -30,7 +33,7 @@ async function close() {
   <div class="flex items-center shrink-0">
     <button
       class="w-11 h-8 flex items-center justify-center text-slate-300 hover:bg-slate-700 transition-colors"
-      title="最小化"
+      :title="t('window.minimize')"
       @click="minimize"
     >
       <svg width="12" height="12" viewBox="0 0 12 12">
@@ -39,7 +42,7 @@ async function close() {
     </button>
     <button
       class="w-11 h-8 flex items-center justify-center text-slate-300 hover:bg-slate-700 transition-colors"
-      :title="maximized ? '还原' : '最大化'"
+      :title="maximized ? t('window.restore') : t('window.maximize')"
       @click="toggleMaximize"
     >
       <svg v-if="!maximized" width="12" height="12" viewBox="0 0 12 12">
@@ -52,7 +55,7 @@ async function close() {
     </button>
     <button
       class="w-11 h-8 flex items-center justify-center text-slate-300 hover:bg-red-600 transition-colors"
-      title="关闭"
+      :title="t('window.close')"
       @click="close"
     >
       <svg width="12" height="12" viewBox="0 0 12 12">

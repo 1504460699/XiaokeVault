@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { storeToRefs } from "pinia";
+import { useI18n } from "vue-i18n";
 import { useLibraryStore } from "../stores/libraryStore";
 
+const { t } = useI18n();
 const store = useLibraryStore();
 const { categories, currentCategoryId } = storeToRefs(store);
 
@@ -29,12 +31,11 @@ function fmtBytes(b: number): string {
       >
         <div class="text-sm truncate">{{ cat.name }}</div>
         <div class="text-xs text-slate-400">
-          {{ cat.package_count }} 包 · {{ cat.file_count }} 文件 ·
-          {{ fmtBytes(cat.total_bytes) }}
+          {{ t("category.pkgCount", { n: cat.package_count, f: cat.file_count, b: fmtBytes(cat.total_bytes) }) }}
         </div>
       </li>
       <li v-if="categories.length === 0" class="px-3 py-4 text-sm text-slate-500">
-        无分类。请先扫描库。
+        {{ t("category.noCategory") }}
       </li>
     </ul>
   </aside>

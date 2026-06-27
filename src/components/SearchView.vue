@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { storeToRefs } from "pinia";
+import { useI18n } from "vue-i18n";
 import { useSearchStore } from "../stores/searchStore";
 import { useLibraryStore } from "../stores/libraryStore";
 import { useSelectionStore } from "../stores/selectionStore";
@@ -7,6 +8,7 @@ import { viewerForKind, iconForViewer, canShowThumb } from "../utils/viewer";
 import { getFileUrl } from "../ipc/fileUrl";
 import type { SearchHit } from "../types/library";
 
+const { t } = useI18n();
 const search = useSearchStore();
 const lib = useLibraryStore();
 const sel = useSelectionStore();
@@ -30,19 +32,19 @@ async function locate(h: SearchHit) {
 <template>
   <div class="flex-1 flex flex-col overflow-hidden">
     <div class="px-4 py-2 border-b border-slate-700 shrink-0 flex items-center gap-2">
-      <span class="text-sm text-slate-300">全局搜索结果</span>
-      <span class="text-xs text-slate-500">{{ results.length }} 个匹配（最多 500）</span>
+      <span class="text-sm text-slate-300">{{ t("search.globalResults") }}</span>
+      <span class="text-xs text-slate-500">{{ t("search.matchCount", { n: results.length }) }}</span>
       <button class="ml-auto text-sky-400 hover:underline text-sm" @click="search.close()">
-        ← 返回浏览
+        ← {{ t("search.backToResults") }}
       </button>
     </div>
 
     <div v-if="searching" class="flex-1 flex items-center justify-center text-slate-500 text-sm">
-      搜索中…
+      {{ t("search.searching") }}
     </div>
 
     <div v-else-if="results.length === 0" class="flex-1 flex items-center justify-center text-slate-500 text-sm">
-      无匹配结果
+      {{ t("search.noMatch") }}
     </div>
 
     <div v-else class="flex-1 overflow-auto p-2">

@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { useI18n } from "vue-i18n";
 import { getFileUrl } from "../../ipc/fileUrl";
 import type { FileNode } from "../../types/library";
 
+const { t } = useI18n();
 const props = defineProps<{ file: FileNode }>();
 </script>
 
@@ -12,7 +14,7 @@ const props = defineProps<{ file: FileNode }>();
       {{ props.file.name }}
     </div>
     <audio controls :src="getFileUrl(props.file)" class="w-full max-w-xs">
-      浏览器不支持音频播放
+      {{ t("preview.audioNotSupported") }}
     </audio>
   </div>
 </template>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { open } from "@tauri-apps/plugin-dialog";
 import { storeToRefs } from "pinia";
 import { useSelectionStore } from "../stores/selectionStore";
@@ -7,6 +8,7 @@ import { exportIpc } from "../ipc/export";
 import { listen } from "@tauri-apps/api/event";
 import type { ExportProgress } from "../types/export";
 
+const { t } = useI18n();
 const props = defineProps<{ show: boolean }>();
 const emit = defineEmits<{ close: [] }>();
 
@@ -20,14 +22,14 @@ const progress = ref<ExportProgress | null>(null);
 const result = ref<string | null>(null);
 
 async function pickDir() {
-  const d = await open({ directory: true, title: "选择导出位置" });
+  const d = await open({ directory: true, title: t("export.pickDirTitle") });
   if (d && !Array.isArray(d)) exportRoot.value = d;
 }
 
 async function doExport() {
   if (currentProjectId.value === null) return;
   if (!exportRoot.value) {
-    alert("请选择导出位置");
+    alert(t("export.selectDirPrompt"));
     return;
   }
   exporting.value = true;
@@ -44,7 +46,7 @@ async function doExport() {
     );
     result.value = r.output_path;
   } catch (e) {
-    alert("导出失败：" + String(e));
+    alert(t("export.failed", { msg: String(e) }));
   } finally {
     exporting.value = false;
     unlisten();
@@ -60,32 +62,32 @@ async function doExport() {
       @click.self="emit('close')"
     >
       <div class="bg-slate-800 rounded-lg p-6 w-[480px] text-slate-100 space-y-3">
-        <h2 class="text-lg font-bold">导出项目</h2>
+        <h2 class="text-lg font-bold">{{ t("export.title") }}</h2>
 
         <div v-if="!exporting && !result">
-          <label class="block text-sm text-slate-400 mb-1">导出位置</label>
+          <label class="block text-sm text-slate-400 mb-1">{{ t("export.exportTo") }}</label>
           <div class="flex gap-2 mb-3">
             <input
               :value="exportRoot"
               readonly
               class="flex-1 bg-slate-700 rounded px-2 py-1 text-sm"
-              placeholder="选择文件夹"
+              :placeholder="t('export.selectDir')"
             />
             <button
               class="px-3 py-1 rounded bg-slate-600 hover:bg-slate-500 text-sm"
               @click="pickDir"
             >
-              浏览
+              {{ t("export.browse") }}
             </button>
           </div>
 
-          <label class="block text-sm text-slate-400 mb-1">格式</label>
+          <label class="block text-sm text-slate-400 mb-1">{{ t("export.format") }}</label>
           <div class="flex gap-4 mb-4">
             <label class="flex items-center gap-1 text-sm">
-              <input type="radio" value="folder" v-model="format" /> 文件夹
+              <input type="radio" value="folder" v-model="format" /> {{ t("export.folder") }}
             </label>
             <label class="flex items-center gap-1 text-sm">
-              <input type="radio" value="zip" v-model="format" /> zip 压缩包
+              <input type="radio" value="zip" v-model="format" /> {{ t("export.zip") }}
             </label>
           </div>
 
@@ -94,20 +96,20 @@ async function doExport() {
               class="px-4 py-1 rounded bg-slate-600 hover:bg-slate-500 text-sm"
               @click="emit('close')"
             >
-              取消
+              {{ t("common.cancel") }}
             </button>
             <button
               class="px-4 py-1 rounded bg-sky-600 hover:bg-sky-500 text-sm"
               @click="doExport"
             >
-              开始导出
+              {{ t("export.startExport") }}
             </button>
           </div>
         </div>
 
         <div v-else-if="exporting" class="py-4">
           <div class="text-sm mb-2">
-            {{ progress?.stage === "copy" ? "复制中" : "处理中" }}…
+            {{ (progress?.stage === "copy" ? t("export.copying") : t("export.processing")) }}…
             ({{ progress?.done }}/{{ progress?.total }})
           </div>
           <div class="w-full bg-slate-700 rounded h-2 overflow-hidden">
@@ -125,14 +127,14 @@ async function doExport() {
         </div>
 
         <div v-else class="py-4">
-          <div class="text-emerald-400 text-sm mb-2">✓ 导出完成</div>
+          <div class="text-emerald-400 text-sm mb-2">✓ {{ t("export.done") }}</div>
           <div class="text-xs text-slate-400 break-all mb-3">{{ result }}</div>
           <div class="flex justify-end">
             <button
               class="px-4 py-1 rounded bg-slate-600 hover:bg-slate-500 text-sm"
               @click="emit('close')"
             >
-              关闭
+              {{ t("common.close") }}
             </button>
           </div>
         </div>

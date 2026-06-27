@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
 import { storeToRefs } from "pinia";
 import { useTypesStore } from "../stores/typesStore";
 import { listen } from "@tauri-apps/api/event";
 import type { AssetType } from "../types/library";
 
+// 注意：函数参数也用 t（AssetType），故 i18n 用 tt 别名避免冲突
+const { t: tt } = useI18n();
 const props = defineProps<{ show: boolean }>();
 const emit = defineEmits<{ close: [] }>();
 
@@ -46,9 +49,9 @@ onUnmounted(() => {
   unlisten?.();
 });
 
-function startEdit(t: AssetType) {
-  editing.value = { ...t };
-  extInput.value = t.extensions.join(", ");
+function startEdit(tp: AssetType) {
+  editing.value = { ...tp };
+  extInput.value = tp.extensions.join(", ");
   isExisting.value = true;
 }
 
@@ -68,7 +71,7 @@ function startNew() {
 async function save() {
   if (!editing.value) return;
   if (!editing.value.kind || !editing.value.label) {
-    alert("类型标识和显示名必填");
+    alert(tt("types.requiredAlert"));
     return;
   }
   const exts = extInput.value
@@ -86,12 +89,12 @@ async function save() {
     });
     editing.value = null;
   } catch (e) {
-    alert("保存失败：" + String(e));
+    alert(tt("types.saveFailed", { msg: String(e) }));
   }
 }
 
 async function remove(kind: string) {
-  if (!confirm(`删除类型 ${kind}？`)) return;
+  if (!confirm(tt("types.deleteType", { name: kind }))) return;
   try {
     await store.remove(kind);
   } catch (e) {
@@ -105,9 +108,9 @@ async function onReclassify() {
   reclassifyMsg.value = "";
   try {
     const r = await store.reclassify();
-    reclassifyMsg.value = `已完成，重新分类 ${r.updated} 个文件`;
+    reclassifyMsg.value = tt("types.reclassifyDone", { n: r.updated });
   } catch (e) {
-    reclassifyMsg.value = "失败：" + String(e);
+    reclassifyMsg.value = tt("types.reclassifyFailed", { msg: String(e) });
   } finally {
     reclassifying.value = false;
     progress.value = null;
@@ -126,12 +129,12 @@ async function onReclassify() {
         class="bg-slate-800 rounded-lg p-6 w-[680px] max-h-[85vh] flex flex-col text-slate-100"
       >
         <div class="flex items-center mb-3">
-          <h2 class="text-lg font-bold flex-1">资源类型管理</h2>
+          <h2 class="text-lg font-bold flex-1">{{ tt("types.title") }}</h2>
           <button
             class="px-3 py-1 rounded bg-sky-600 hover:bg-sky-500 text-sm"
             @click="startNew"
           >
-            + 新增类型
+            {{ tt("types.addType") }}
           </button>
         </div>
 
@@ -143,28 +146,28 @@ async function onReclassify() {
           <div class="flex gap-2">
             <input
               v-model="editing.kind"
-              placeholder="类型标识(如 video)"
+              :placeholder="tt('types.kindPlaceholder')"
               class="flex-1 bg-slate-700 rounded px-2 py-1 text-sm"
               :disabled="isExisting"
             />
             <input
               v-model="editing.label"
-              placeholder="显示名(如 视频)"
+              :placeholder="tt('types.namePlaceholder')"
               class="flex-1 bg-slate-700 rounded px-2 py-1 text-sm"
             />
           </div>
           <input
             v-model="extInput"
-            placeholder="扩展名，逗号分隔(如 webm,mp4)"
+            :placeholder="tt('types.extsPlaceholder')"
             class="w-full bg-slate-700 rounded px-2 py-1 text-sm"
           />
           <div class="flex items-center gap-2 text-sm">
-            <span class="text-slate-400">预览器：</span>
+            <span class="text-slate-400">{{ tt("types.viewerLabel") }}</span>
             <select v-model="editing.viewer" class="bg-slate-700 rounded px-2 py-1 text-sm">
               <option v-for="v in VIEWERS" :key="v" :value="v">{{ v }}</option>
             </select>
             <label class="flex items-center gap-1 ml-2">
-              <input type="checkbox" v-model="editing.is_source" /> 源文件
+              <input type="checkbox" v-model="editing.is_source" /> {{ tt("types.sourceFile") }}
             </label>
           </div>
           <div class="flex gap-2">
@@ -172,13 +175,13 @@ async function onReclassify() {
               class="px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-sm"
               @click="save"
             >
-              保存
+              {{ tt("common.save") }}
             </button>
             <button
               class="px-3 py-1 rounded bg-slate-600 hover:bg-slate-500 text-sm"
               @click="editing = null"
             >
-              取消
+              {{ tt("common.cancel") }}
             </button>
           </div>
         </div>
@@ -188,44 +191,44 @@ async function onReclassify() {
           <table class="w-full text-sm">
             <thead class="text-xs text-slate-400 sticky top-0 bg-slate-800">
               <tr>
-                <th class="text-left p-1">标识</th>
-                <th class="text-left p-1">显示名</th>
-                <th class="text-left p-1">扩展名</th>
-                <th class="text-left p-1">预览器</th>
-                <th class="text-left p-1">操作</th>
+                <th class="text-left p-1">{{ tt("types.kind") }}</th>
+                <th class="text-left p-1">{{ tt("types.name") }}</th>
+                <th class="text-left p-1">{{ tt("types.exts") }}</th>
+                <th class="text-left p-1">{{ tt("types.viewer") }}</th>
+                <th class="text-left p-1">{{ tt("types.operation") }}</th>
               </tr>
             </thead>
             <tbody>
               <tr
-                v-for="t in types"
-                :key="t.kind"
+                v-for="tp in types"
+                :key="tp.kind"
                 class="border-t border-slate-700"
               >
-                <td class="p-1 font-mono text-sky-300">{{ t.kind }}</td>
-                <td class="p-1">{{ t.label }}</td>
+                <td class="p-1 font-mono text-sky-300">{{ tp.kind }}</td>
+                <td class="p-1">{{ tp.label }}</td>
                 <td class="p-1 text-xs text-slate-400">
-                  {{ t.extensions.join(", ") || "—" }}
+                  {{ tp.extensions.join(", ") || "—" }}
                 </td>
-                <td class="p-1 text-xs">{{ t.viewer }}</td>
+                <td class="p-1 text-xs">{{ tp.viewer }}</td>
                 <td class="p-1 whitespace-nowrap">
                   <button
                     class="px-2 py-0.5 rounded bg-slate-600 hover:bg-slate-500 text-xs mr-1 whitespace-nowrap"
-                    @click="startEdit(t)"
+                    @click="startEdit(tp)"
                   >
-                    编辑
+                    {{ tt("types.editType") }}
                   </button>
                   <button
                     class="px-2 py-0.5 rounded bg-red-700 hover:bg-red-600 text-xs whitespace-nowrap"
-                    @click="remove(t.kind)"
+                    @click="remove(tp.kind)"
                   >
-                    删除
+                    {{ tt("common.delete") }}
                   </button>
                 </td>
               </tr>
             </tbody>
           </table>
           <div v-if="loading" class="text-center text-slate-500 py-4 text-sm">
-            加载中…
+            {{ tt("common.loading") }}
           </div>
         </div>
 
@@ -237,12 +240,12 @@ async function onReclassify() {
               :disabled="reclassifying"
               @click="onReclassify"
             >
-              {{ reclassifying ? "分类中…" : "按新类型重新分类全库" }}
+              {{ reclassifying ? tt("types.reclassifying") : tt("types.reclassify") }}
             </button>
             <span v-if="reclassifyMsg" class="text-xs text-emerald-400">{{
               reclassifyMsg
             }}</span>
-            <span class="text-xs text-slate-500 ml-auto">修改类型后需重新分类才生效</span>
+            <span class="text-xs text-slate-500 ml-auto">{{ tt("types.needReclassify") }}</span>
           </div>
           <div v-if="progress && progress.total > 0" class="flex items-center gap-2 text-xs text-slate-400">
             <div class="flex-1 bg-slate-700 rounded h-1.5 overflow-hidden">
@@ -260,7 +263,7 @@ async function onReclassify() {
             class="px-4 py-1 rounded bg-slate-600 hover:bg-slate-500 text-sm"
             @click="emit('close')"
           >
-            关闭
+            {{ tt("common.close") }}
           </button>
         </div>
       </div>
