@@ -288,3 +288,34 @@ fn write_manifest_to_zip(
         ?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// sanitize：Windows 非法路径字符替换为下划线
+    #[test]
+    fn test_sanitize_replaces_illegal_chars() {
+        assert_eq!(sanitize("a/b\\c"), "a_b_c");
+        assert_eq!(sanitize("file:name"), "file_name");
+        assert_eq!(sanitize("a*b?c"), "a_b_c");
+        assert_eq!(sanitize("a<b>c|d"), "a_b_c_d");
+        assert_eq!(sanitize("say\"hi"), "say_hi");
+    }
+
+    #[test]
+    fn test_sanitize_keeps_safe_chars() {
+        // 普通字符、中文、数字、点、空格应保留
+        assert_eq!(sanitize("素材包"), "素材包");
+        assert_eq!(sanitize("file_1.txt"), "file_1.txt");
+        assert_eq!(sanitize("Hero Pack 2"), "Hero Pack 2");
+    }
+
+    #[test]
+    fn test_sanitize_empty_and_complex() {
+        assert_eq!(sanitize(""), "");
+        // 混合：保留合法、替换非法
+        assert_eq!(sanitize("树/叶:2"), "树_叶_2");
+    }
+}
+

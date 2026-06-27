@@ -181,6 +181,17 @@ impl Registry {
     pub fn all(&self) -> &[AssetType] {
         &self.types
     }
+
+    /// 从类型列表直接构造（测试用，无需数据库）。
+    pub fn from_types(types: Vec<AssetType>) -> Self {
+        let mut by_ext = HashMap::new();
+        for t in &types {
+            for e in &t.extensions {
+                by_ext.insert(e.to_lowercase(), t.clone());
+            }
+        }
+        Registry { by_ext, types }
+    }
 }
 
 use tauri::State;
@@ -287,3 +298,55 @@ pub async fn reclassify_all(
     );
     Ok(ReclassifyReport { updated })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// kind_for：内置类型扩展名命中
+    #[test]
+    fn test_kind_for_builtin() {
+        let reg = Registry::from_types(builtin_types());
+        assert_eq!(reg.kind_for("png"), "image");
+        assert_eq!(reg.kind_for("JPG"), "image"); // 大写应命中
+        assert_eq!(reg.kind_for("gif"), "animated");
+        assert_eq!(reg.kind_for("ogg"), "audio");
+        assert_eq!(reg.kind_for("ttf"), "font");
+        assert_eq!(reg.kind_for("glb"), "model3d");
+    }
+
+    #[test]
+    fn test_kind_for_unknown() {
+        let reg = Registry::from_types(builtin_types());
+        assert_eq!(reg.kind_for("xyz"), "other");
+        assert_eq!(reg.kind_for(""), "other");
+    }
+
+    /// 自定义类型覆盖：用户新增 video 类型后能命中
+    #[test]
+    fn test_kind_for_custom_type() {
+        let mut types = builtin_types();
+        types.push(AssetType {
+            kind: "video".into(),
+            label: "视频".into(),
+            extensions: vec!["mp4".into(), "webm".into()],
+            viewer: "fallback".into(),
+            icon: None,
+            is_source: false,
+        });
+        let reg = Registry::from_types(types);
+        assert_eq!(reg.kind_for("mp4"), "video");
+        assert_eq!(reg.kind_for("webm"), "video");
+        // 原有类型不受影响
+        assert_eq!(reg.kind_for("png"), "image");
+    }
+
+    #[test]
+    fn test_kind_for_case_insensitive() {
+        let reg = Registry::from_types(builtin_types());
+        // 大小写不敏感
+        assert_eq!(reg.kind_for("PNG"), reg.kind_for("png"));
+        assert_eq!(reg.kind_for("Wav"), "audio");
+    }
+}
+

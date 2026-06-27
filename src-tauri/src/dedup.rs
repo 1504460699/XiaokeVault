@@ -431,3 +431,84 @@ fn file_hash(path: &std::path::Path) -> Option<String> {
     std::io::copy(&mut f, &mut hasher).ok()?;
     Some(format!("{:x}", hasher.finalize()))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// norm：去空格/下划线/扩展名/小写
+    #[test]
+    fn test_norm_basic() {
+        assert_eq!(norm("My_Asset.zip"), "myasset");
+        assert_eq!(norm("Hero%20Pack.7z"), "heropack");
+        assert_eq!(norm("A B C"), "abc");
+    }
+
+    #[test]
+    fn test_norm_lowercase_and_extension() {
+        // 扩展名应被去掉
+        assert!(!norm("file.ZIP").contains("zip"));
+        // 大写转小写
+        assert_eq!(norm("ABC"), "abc");
+    }
+
+    /// has_backup_signal：含版本/年份/备份词才返回 true
+    #[test]
+    fn test_has_backup_signal_year() {
+        assert!(has_backup_signal("Trees2010", "Trees"));
+        assert!(has_backup_signal("Pack", "Pack v2"));
+    }
+
+    #[test]
+    fn test_has_backup_signal_words() {
+        assert!(has_backup_signal("完整版资源", "资源"));
+        assert!(has_backup_signal("a", "b copy"));
+        assert!(has_backup_signal("Dungeon_full", "Dungeon"));
+    }
+
+    #[test]
+    fn test_has_backup_signal_none() {
+        // 仅分辨率/规格差异，不含信号词 → false（避免误报）
+        assert!(!has_backup_signal("Hero_64px", "Hero_128px"));
+        assert!(!has_backup_signal("tree", "bush"));
+    }
+
+    /// backup_norm：去版本/年份/后缀词/数字/下划线
+    #[test]
+    fn test_backup_norm_strips_modifiers() {
+        let n = backup_norm("Trees_2010_完整版");
+        assert!(!n.contains("完整版"));
+        assert!(!n.contains("2010"));
+        assert!(!n.contains("_"));
+        assert!(n.contains("trees"));
+    }
+
+    #[test]
+    fn test_backup_norm_digits_removed() {
+        // 数字（年份/版本号）应被去掉
+        assert!(!backup_norm("Pack2020").contains("2020"));
+        assert!(!backup_norm("v3final").contains('3'));
+    }
+
+    /// common_prefix_ratio：共同前缀占较短者比例
+    #[test]
+    fn test_common_prefix_ratio_full() {
+        assert!((common_prefix_ratio("abc", "abcde") - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_common_prefix_ratio_partial() {
+        // "tree" vs "treesong"，共同前缀 4，较短者 4 → 1.0
+        assert!((common_prefix_ratio("tree", "treesong") - 1.0).abs() < 1e-9);
+        // "abc" vs "axc"，共同前缀 1（a），较短者 3 → 1/3
+        let r = common_prefix_ratio("abc", "axc");
+        assert!((r - 1.0 / 3.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_common_prefix_ratio_empty() {
+        assert_eq!(common_prefix_ratio("", "abc"), 0.0);
+        assert_eq!(common_prefix_ratio("abc", ""), 0.0);
+    }
+}
+
