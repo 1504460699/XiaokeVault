@@ -23,3 +23,10 @@ pub async fn connect() -> Result<SqlitePool, sqlx::Error> {
         .connect_with(opts)
         .await
 }
+
+/// 执行初始建表迁移。
+pub async fn migrate(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    let sql = include_str!("../migrations/0001_init.sql");
+    sqlx::query(sql).execute(pool).await?;
+    Ok(())
+}
