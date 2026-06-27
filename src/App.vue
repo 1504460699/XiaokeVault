@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from "vue";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { useI18n } from "vue-i18n";
 import TopBar from "./components/TopBar.vue";
 import CategoryTree from "./components/CategoryTree.vue";
 import DirectoryTree from "./components/DirectoryTree.vue";
@@ -19,11 +21,22 @@ const store = useLibraryStore();
 const selStore = useSelectionStore();
 const searchStore = useSearchStore();
 const treeStore = useTreeStore();
+const { t, locale } = useI18n();
 const showExport = ref(false);
+
+// 窗口标题跟随语言：中文=笑客宝库，英文=XiaokeVault
+async function syncWindowTitle() {
+  try {
+    await getCurrentWindow().setTitle(t("brand.name"));
+  } catch {
+    // 非 tauri 环境（如纯 web 预览）忽略
+  }
+}
 const showDedup = ref(false);
 const showTypes = ref(false);
 
 onMounted(async () => {
+  await syncWindowTitle();
   await store.loadLibraries();
   if (store.currentLibId !== null) {
     await store.loadCategories();
@@ -60,6 +73,11 @@ onMounted(async () => {
   await listen("library://auto-scanning", () => {
     store.autoScanning = true;
   });
+});
+
+// 语言切换时同步窗口标题
+watch(locale, () => {
+  syncWindowTitle();
 });
 
 // 切换分类时刷新该分类的勾选状态

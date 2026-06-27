@@ -12,8 +12,5 @@ CREATE TABLE IF NOT EXISTS directories (
 );
 CREATE INDEX IF NOT EXISTS idx_dirs_parent ON directories(parent_id);
 CREATE INDEX IF NOT EXISTS idx_dirs_library ON directories(library_id);
+-- files 表增加 directory_id 的 ALTER 在 Rust migrate() 里幂等执行（SQLite 不支持 ADD COLUMN IF NOT EXISTS）
 
--- files 表增加 directory_id（关联直接所在目录）
--- 注意：SQLite 的 ALTER TABLE ADD COLUMN 不能加到已有表的非末尾，此处加在末尾即可
-ALTER TABLE files ADD COLUMN directory_id INTEGER REFERENCES directories(id) ON DELETE CASCADE;
-CREATE INDEX IF NOT EXISTS idx_files_directory ON files(directory_id);

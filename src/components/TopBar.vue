@@ -51,7 +51,7 @@ function onLangChange(e: Event) {
     class="flex items-center gap-3 px-4 h-12 bg-slate-800 border-b border-slate-700 shrink-0"
     data-tauri-drag-region
   >
-    <span class="font-bold text-sky-400">XiaokeVault</span>
+    <span class="font-bold text-sky-400">{{ t("brand.name") }}</span>
     <select
       class="bg-slate-700 text-slate-100 px-2 py-1 rounded text-sm"
       :value="currentLibId ?? ''"

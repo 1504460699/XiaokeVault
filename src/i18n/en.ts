@@ -1,5 +1,8 @@
 // English language pack
 export default {
+  brand: {
+    name: "XiaokeVault",
+  },
   common: {
     close: "Close",
     cancel: "Cancel",

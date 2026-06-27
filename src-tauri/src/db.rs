@@ -93,5 +93,34 @@ pub async fn migrate(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     sqlx::query(include_str!("../migrations/0004_directories.sql"))
         .execute(pool)
         .await?;
+    // files.directory_id：SQLite 不支持 ADD COLUMN IF NOT EXISTS，先查列是否存在再加
+    ensure_column(pool, "files", "directory_id", "INTEGER REFERENCES directories(id) ON DELETE CASCADE").await?;
+    Ok(())
+}
+
+/// 幂等添加列：若列不存在则 ALTER TABLE ADD COLUMN，并建同名索引。
+async fn ensure_column(
+    pool: &SqlitePool,
+    table: &str,
+    column: &str,
+    def: &str,
+) -> Result<(), sqlx::Error> {
+    let exists: (i64,) = sqlx::query_as(&format!(
+        "SELECT COUNT(*) FROM pragma_table_info('{}') WHERE name='{}'",
+        table, column
+    ))
+    .fetch_one(pool)
+    .await?;
+    if exists.0 == 0 {
+        sqlx::query(&format!("ALTER TABLE {} ADD COLUMN {} {}", table, column, def))
+            .execute(pool)
+            .await?;
+        sqlx::query(&format!(
+            "CREATE INDEX IF NOT EXISTS idx_{}_{} ON {}({})",
+            table, column, table, column
+        ))
+        .execute(pool)
+        .await?;
+    }
     Ok(())
 }

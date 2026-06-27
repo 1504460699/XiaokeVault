@@ -1,5 +1,8 @@
 // 中文语言包（默认语言）
 export default {
+  brand: {
+    name: "笑客宝库",
+  },
   common: {
     close: "关闭",
     cancel: "取消",
