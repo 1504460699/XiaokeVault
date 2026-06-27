@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import { storeToRefs } from "pinia";
+import { open } from "@tauri-apps/plugin-dialog";
 import { useDedupStore } from "../stores/dedupStore";
 import { useLibraryStore } from "../stores/libraryStore";
 
@@ -8,17 +10,41 @@ const emit = defineEmits<{ close: [] }>();
 
 const dedup = useDedupStore();
 const lib = useLibraryStore();
-const { groups, report, scanning } = storeToRefs(dedup);
+const { groups, report, scanning, removing } = storeToRefs(dedup);
+
+const backupRoot = ref("");
+const lastResult = ref<string | null>(null);
 
 async function onScan() {
   if (lib.currentLibId === null) return;
+  lastResult.value = null;
   await dedup.runDedup(lib.currentLibId);
+}
+
+async function pickBackupDir() {
+  const d = await open({ directory: true, title: "选择备份位置（删除的文件会移到这里）" });
+  if (d && !Array.isArray(d)) backupRoot.value = d;
 }
 
 async function onRemove(groupId: number, fileId: number | null) {
   if (fileId === null) return;
-  if (!confirm("确认删除？文件会移到 trash 目录，可恢复。")) return;
-  await dedup.removeMember(fileId, groupId);
+  if (!backupRoot.value) {
+    alert("请先选择备份位置");
+    return;
+  }
+  if (!confirm("确认删除？文件会移到备份目录，可恢复。")) return;
+  await dedup.removeMember(fileId, groupId, backupRoot.value);
+}
+
+async function onRemoveAll() {
+  if (groups.value.length === 0) return;
+  if (!backupRoot.value) {
+    alert("请先选择备份位置");
+    return;
+  }
+  if (!confirm(`确认一键清理 ${report.value?.removable_files ?? 0} 个冗余文件？\n文件会移到：${backupRoot.value}`)) return;
+  const r = await dedup.removeAll(backupRoot.value);
+  lastResult.value = `已清理 ${r.removed} 个文件${r.failed ? `，${r.failed} 个失败` : ""}`;
 }
 
 function fmtBytes(b: number): string {
@@ -37,7 +63,7 @@ function fmtBytes(b: number): string {
       @click.self="emit('close')"
     >
       <div
-        class="bg-slate-800 rounded-lg p-6 w-[640px] max-h-[80vh] flex flex-col text-slate-100"
+        class="bg-slate-800 rounded-lg p-6 w-[640px] max-h-[85vh] flex flex-col text-slate-100"
       >
         <div class="flex items-center mb-3">
           <h2 class="text-lg font-bold flex-1">去重整理</h2>
@@ -50,11 +76,40 @@ function fmtBytes(b: number): string {
           </button>
         </div>
 
-        <div v-if="report" class="text-xs text-slate-400 mb-3">
+        <!-- 备份位置 -->
+        <div class="mb-3">
+          <label class="block text-xs text-slate-400 mb-1">删除备份位置（删掉的文件移到这里，可恢复）</label>
+          <div class="flex gap-2">
+            <input
+              :value="backupRoot"
+              readonly
+              placeholder="未选择则用应用默认 trash 目录"
+              class="flex-1 bg-slate-700 rounded px-2 py-1 text-xs"
+            />
+            <button
+              class="px-3 py-1 rounded bg-slate-600 hover:bg-slate-500 text-xs"
+              @click="pickBackupDir"
+            >
+              选择
+            </button>
+          </div>
+        </div>
+
+        <div v-if="report" class="text-xs text-slate-400 mb-2">
           发现 {{ report.groups }} 组重复 · 可清理
           {{ report.removable_files }} 文件 ·
           {{ fmtBytes(report.removable_bytes) }}
+          <button
+            v-if="groups.length > 0"
+            class="ml-3 px-2 py-0.5 rounded bg-red-700 hover:bg-red-600 text-xs"
+            :disabled="removing"
+            @click="onRemoveAll"
+          >
+            {{ removing ? "清理中…" : "一键清理全部" }}
+          </button>
         </div>
+
+        <div v-if="lastResult" class="text-xs text-emerald-400 mb-2">{{ lastResult }}</div>
 
         <div class="flex-1 overflow-auto space-y-2">
           <div

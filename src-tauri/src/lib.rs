@@ -54,7 +54,8 @@ pub fn run() {
             exporter::run_export,
             dedup::run_dedup,
             dedup::get_duplicate_groups,
-            dedup::remove_duplicate
+            dedup::remove_duplicate,
+            dedup::remove_all_duplicates
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

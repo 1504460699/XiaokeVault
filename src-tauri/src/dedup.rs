@@ -113,6 +113,10 @@ pub async fn run_dedup(lib_id: i64, pool: State<'_, SqlitePool>) -> Result<Dedup
                     .fetch_optional(&*pool)
                     .await
                     .map_err(|e| e.to_string())?;
+                    log::info!(
+                        "[dedup] pkg={} zip={} matched_dir={} file_id={:?}",
+                        pkg_id, zip_name, dir_name, zip_file
+                    );
                     if let Some((fid,)) = zip_file {
                         sqlx::query(
                             "INSERT INTO duplicate_members(group_id,file_id,package_id,role) VALUES(?,?,?,'remove')",
@@ -191,9 +195,33 @@ pub async fn get_duplicate_groups(pool: State<'_, SqlitePool>) -> Result<Vec<Dup
     Ok(out)
 }
 
-/// 软删除：把 file 物理移到 trash，files 标 deleted=1
+/// 把单个文件移到备份目录，返回目标路径。
+/// backup_root: 用户指定的备份根目录；为空则用 app data/trash。
+fn move_to_backup(src: &std::path::Path, abs_pkg: &str, rel: &str, backup_root: &str) -> Result<std::path::PathBuf, String> {
+    let mut base = if backup_root.is_empty() {
+        let mut t = dirs::data_dir().ok_or("no data dir")?;
+        t.push("com.xiaoke.tauri-app");
+        t.push("trash");
+        t
+    } else {
+        std::path::PathBuf::from(backup_root)
+    };
+    base.push(abs_pkg.replace(':', "_"));
+    base.push(rel);
+    if let Some(parent) = base.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    std::fs::rename(src, &base).map_err(|e| e.to_string())?;
+    Ok(base)
+}
+
+/// 软删除单个冗余文件
 #[tauri::command]
-pub async fn remove_duplicate(file_id: i64, pool: State<'_, SqlitePool>) -> Result<String, String> {
+pub async fn remove_duplicate(
+    file_id: i64,
+    backup_root: String,
+    pool: State<'_, SqlitePool>,
+) -> Result<String, String> {
     let (abs_pkg, rel): (String, String) = sqlx::query_as(
         "SELECT p.path, f.rel_path FROM files f JOIN packages p ON p.id=f.package_id WHERE f.id=?",
     )
@@ -202,33 +230,75 @@ pub async fn remove_duplicate(file_id: i64, pool: State<'_, SqlitePool>) -> Resu
     .await
     .map_err(|e| e.to_string())?;
     let src = std::path::Path::new(&abs_pkg).join(&rel);
-    if src.exists() {
-        let mut trash = dirs::data_dir().ok_or("no data dir")?;
-        trash.push("com.xiaoke.tauri-app");
-        trash.push("trash");
-        let ts = chrono::Utc::now().timestamp();
-        let dest = trash
-            .join(ts.to_string())
-            .join(abs_pkg.replace(':', "_"))
-            .join(&rel);
-        if let Some(parent) = dest.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-        }
-        std::fs::rename(&src, &dest).map_err(|e| e.to_string())?;
+    let msg = if src.exists() {
+        let dest = move_to_backup(&src, &abs_pkg, &rel, &backup_root)?;
         sqlx::query("UPDATE files SET deleted=1 WHERE id=?")
             .bind(file_id)
             .execute(&*pool)
             .await
             .map_err(|e| e.to_string())?;
-        Ok(dest.to_string_lossy().to_string())
+        dest.to_string_lossy().to_string()
     } else {
         sqlx::query("UPDATE files SET deleted=1 WHERE id=?")
             .bind(file_id)
             .execute(&*pool)
             .await
             .map_err(|e| e.to_string())?;
-        Ok("文件已不存在，仅标记删除".into())
+        "文件已不存在，仅标记删除".into()
+    };
+    Ok(msg)
+}
+
+/// 一键去重：批量移除所有 role=remove 的成员到备份目录
+#[derive(Debug, Serialize)]
+pub struct BatchRemoveResult {
+    pub removed: i64,
+    pub failed: i64,
+}
+
+#[tauri::command]
+pub async fn remove_all_duplicates(
+    backup_root: String,
+    pool: State<'_, SqlitePool>,
+) -> Result<BatchRemoveResult, String> {
+    let file_ids: Vec<i64> = sqlx::query_scalar(
+        "SELECT file_id FROM duplicate_members WHERE role='remove' AND file_id IS NOT NULL",
+    )
+    .fetch_all(&*pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    let mut removed = 0i64;
+    let mut failed = 0i64;
+    for fid in file_ids {
+        let (abs_pkg, rel): (String, String) = sqlx::query_as(
+            "SELECT p.path, f.rel_path FROM files f JOIN packages p ON p.id=f.package_id WHERE f.id=?",
+        )
+        .bind(fid)
+        .fetch_one(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+        let src = std::path::Path::new(&abs_pkg).join(&rel);
+        let ok = if src.exists() {
+            move_to_backup(&src, &abs_pkg, &rel, &backup_root).is_ok()
+        } else {
+            true
+        };
+        if ok {
+            let _ = sqlx::query("UPDATE files SET deleted=1 WHERE id=?")
+                .bind(fid)
+                .execute(&*pool)
+                .await;
+            removed += 1;
+        } else {
+            failed += 1;
+        }
     }
+    // 清空已处理的重复组
+    sqlx::query("DELETE FROM duplicate_members")
+        .execute(&*pool).await.map_err(|e| e.to_string())?;
+    sqlx::query("DELETE FROM duplicate_groups")
+        .execute(&*pool).await.map_err(|e| e.to_string())?;
+    Ok(BatchRemoveResult { removed, failed })
 }
 
 /// 计算文件 sha256（hash 检测备用，M5 v1 暂不主动调用）
