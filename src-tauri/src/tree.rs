@@ -85,25 +85,27 @@ pub async fn get_directory_files(
     directory_id: i64,
     pool: State<'_, SqlitePool>,
 ) -> Result<Vec<FileNode>, AppError> {
-    let rows: Vec<(i64, String, String, String, String, i64, String)> = sqlx::query_as(
-        "SELECT f.id, f.rel_path, f.name, f.ext, f.kind, f.bytes, d.path
-         FROM files f JOIN directories d ON d.id=f.directory_id
+    // directory.path 是相对库根的，需库根拼绝对路径
+    let rows: Vec<(i64, String, String, String, String, i64, String, String)> = sqlx::query_as(
+        "SELECT f.id, f.rel_path, f.name, f.ext, f.kind, f.bytes, d.path, l.root_path
+         FROM files f
+         JOIN directories d ON d.id=f.directory_id
+         JOIN libraries l ON l.id=d.library_id
          WHERE f.directory_id=? AND f.deleted=0 ORDER BY f.rel_path",
     )
     .bind(directory_id)
     .fetch_all(&*pool)
-    .await
-    ?;
+    .await?;
     Ok(rows
         .into_iter()
-        .map(|(id, rel, name, ext, kind, bytes, dir_path)| FileNode {
+        .map(|(id, rel, name, ext, kind, bytes, dir_path, root)| FileNode {
             id,
             rel_path: rel.clone(),
             name,
             ext,
             kind,
             bytes,
-            abs_path: format!("{}/{}", dir_path, rel),
+            abs_path: format!("{}/{}/{}", root, dir_path, rel),
         })
         .collect())
 }
@@ -114,32 +116,33 @@ pub async fn get_subtree_files(
     directory_id: i64,
     pool: State<'_, SqlitePool>,
 ) -> Result<Vec<FileNode>, AppError> {
-    let rows: Vec<(i64, String, String, String, String, i64, String)> = sqlx::query_as(
+    // directory.path 相对库根，需库根拼绝对路径
+    let rows: Vec<(i64, String, String, String, String, i64, String, String)> = sqlx::query_as(
         "WITH RECURSIVE desc(id) AS (
             SELECT id FROM directories WHERE id=?
             UNION ALL
             SELECT d.id FROM directories d JOIN desc ON d.parent_id=desc.id
          )
-         SELECT f.id, f.rel_path, f.name, f.ext, f.kind, f.bytes, dir.path
+         SELECT f.id, f.rel_path, f.name, f.ext, f.kind, f.bytes, dir.path, l.root_path
          FROM files f
          JOIN directories dir ON dir.id=f.directory_id
+         JOIN libraries l ON l.id=dir.library_id
          WHERE f.directory_id IN (SELECT id FROM desc) AND f.deleted=0
          ORDER BY f.rel_path",
     )
     .bind(directory_id)
     .fetch_all(&*pool)
-    .await
-    ?;
+    .await?;
     Ok(rows
         .into_iter()
-        .map(|(id, rel, name, ext, kind, bytes, dir_path)| FileNode {
+        .map(|(id, rel, name, ext, kind, bytes, dir_path, root)| FileNode {
             id,
             rel_path: rel.clone(),
             name,
             ext,
             kind,
             bytes,
-            abs_path: format!("{}/{}", dir_path, rel),
+            abs_path: format!("{}/{}/{}", root, dir_path, rel),
         })
         .collect())
 }

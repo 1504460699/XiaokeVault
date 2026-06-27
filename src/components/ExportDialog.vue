@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { open } from "@tauri-apps/plugin-dialog";
 import { storeToRefs } from "pinia";
@@ -15,6 +15,18 @@ const emit = defineEmits<{ close: [] }>();
 
 const sel = useSelectionStore();
 const { currentProjectId } = storeToRefs(sel);
+
+// 对话框打开时重置状态（避免上次导出的 result 残留，导致跳过选目录界面）
+watch(
+  () => props.show,
+  (show) => {
+    if (show) {
+      result.value = null;
+      exporting.value = false;
+      progress.value = null;
+    }
+  },
+);
 
 const exportRoot = ref("");
 const format = ref<"folder" | "zip">("folder");

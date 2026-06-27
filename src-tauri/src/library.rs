@@ -44,7 +44,7 @@ pub struct FileNode {
     pub abs_path: String,
 }
 
-/// 全局搜索结果（跨包）
+/// 全局搜索结果（跨包/跨目录）
 #[derive(Debug, Serialize)]
 pub struct SearchHit {
     pub id: i64,
@@ -56,9 +56,11 @@ pub struct SearchHit {
     pub package_name: String,
     pub category_name: String,
     pub package_id: i64,
+    pub directory_id: Option<i64>,
 }
 
-/// 全局跨包搜索：按文件名模糊匹配 + 可选 kind 过滤
+/// 全局跨包/跨目录搜索：按文件名模糊匹配 + 可选 kind 过滤
+/// 同时覆盖两级视图文件（package_id）和树视图文件（directory_id）
 #[tauri::command]
 pub async fn search_files(
     query: String,
@@ -66,12 +68,24 @@ pub async fn search_files(
     pool: State<'_, SqlitePool>,
 ) -> Result<Vec<SearchHit>, AppError> {
     let like = format!("%{}%", query.trim());
-    let rows: Vec<(i64, String, String, String, i64, String, String, String, i64)> = match &kind {
+    // 字段：id, name, ext, kind, bytes, rel_path, package_id, directory_id,
+    //       pkg_path, dir_path, package_name, category_name, library_root
+    let rows: Vec<(
+        i64, String, String, String, i64, String,
+        Option<i64>, Option<i64>, Option<String>, Option<String>,
+        String, String, Option<String>,
+    )> = match &kind {
         Some(k) if !k.is_empty() => sqlx::query_as(
-            "SELECT f.id, f.name, f.ext, f.kind, f.bytes, p.path || '/' || f.rel_path, p.name, c.name, p.id
+            "SELECT f.id, f.name, f.ext, f.kind, f.bytes, f.rel_path,
+                    f.package_id, f.directory_id,
+                    p.path, d.path,
+                    COALESCE(p.name, d.name), COALESCE(c.name, ''),
+                    l.root_path
              FROM files f
-             JOIN packages p ON p.id=f.package_id
-             JOIN categories c ON c.id=p.category_id
+             LEFT JOIN packages p ON p.id=f.package_id
+             LEFT JOIN categories c ON c.id=p.category_id
+             LEFT JOIN directories d ON d.id=f.directory_id
+             LEFT JOIN libraries l ON l.id = COALESCE(d.library_id, c.library_id)
              WHERE f.deleted=0 AND f.kind=? AND f.name LIKE ?
              ORDER BY f.name LIMIT 500",
         )
@@ -80,10 +94,16 @@ pub async fn search_files(
         .fetch_all(&*pool)
         .await?,
         _ => sqlx::query_as(
-            "SELECT f.id, f.name, f.ext, f.kind, f.bytes, p.path || '/' || f.rel_path, p.name, c.name, p.id
+            "SELECT f.id, f.name, f.ext, f.kind, f.bytes, f.rel_path,
+                    f.package_id, f.directory_id,
+                    p.path, d.path,
+                    COALESCE(p.name, d.name), COALESCE(c.name, ''),
+                    l.root_path
              FROM files f
-             JOIN packages p ON p.id=f.package_id
-             JOIN categories c ON c.id=p.category_id
+             LEFT JOIN packages p ON p.id=f.package_id
+             LEFT JOIN categories c ON c.id=p.category_id
+             LEFT JOIN directories d ON d.id=f.directory_id
+             LEFT JOIN libraries l ON l.id = COALESCE(d.library_id, c.library_id)
              WHERE f.deleted=0 AND f.name LIKE ?
              ORDER BY f.name LIMIT 500",
         )
@@ -93,11 +113,26 @@ pub async fn search_files(
     };
     Ok(rows
         .into_iter()
-        .map(
-            |(id, name, ext, kind, bytes, abs_path, package_name, category_name, package_id)| SearchHit {
-                id, name, ext, kind, bytes, abs_path, package_name, category_name, package_id,
-            },
-        )
+        .map(|(id, name, ext, kind, bytes, rel, pkg_id, dir_id, pkg_path, dir_path, pkg_name, cat_name, root)| {
+            // 拼绝对路径：树视图=库根/dir_path/rel；两级视图=pkg_path/rel
+            let abs_path = if let (Some(dp), Some(rt)) = (dir_path, &root) {
+                format!("{}/{}", rt, dp) + "/" + &rel
+            } else {
+                format!("{}/{}", pkg_path.unwrap_or_default(), rel)
+            };
+            SearchHit {
+                id,
+                name,
+                ext,
+                kind,
+                bytes,
+                abs_path,
+                package_name: pkg_name,
+                category_name: cat_name,
+                package_id: pkg_id.unwrap_or(0),
+                directory_id: dir_id,
+            }
+        })
         .collect())
 }
 
@@ -245,3 +280,4 @@ pub async fn get_package_files(
         })
         .collect())
 }
+

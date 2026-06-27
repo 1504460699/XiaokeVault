@@ -83,6 +83,7 @@ export interface SearchHit {
   package_name: string;
   category_name: string;
   package_id: number;
+  directory_id: number | null;
 }
 
 // 目录树节点（递归，对应 src-tauri/src/tree.rs 的 DirNode）

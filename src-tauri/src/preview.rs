@@ -18,16 +18,35 @@ pub struct ThumbResult {
 /// 返回缩略图路径：大图(>50KB)生成缩略图缓存，小图直接返回原路径
 #[tauri::command]
 pub async fn get_thumbnail(file_id: i64, pool: State<'_, SqlitePool>) -> Result<ThumbResult, AppError> {
-    let (abs_pkg, rel, bytes, ext): (String, String, i64, String) = sqlx::query_as(
-        "SELECT p.path, f.rel_path, f.bytes, f.ext FROM files f
-         JOIN packages p ON p.id=f.package_id WHERE f.id=?",
+    // 树视图文件：directory_id 关联，directory.path 相对库根，需库根拼绝对路径
+    // 两级视图文件：package_id 关联，package.path 已是绝对路径
+    let row: (Option<i64>, Option<String>, Option<String>, String, i64, String) = sqlx::query_as(
+        "SELECT f.directory_id, d.path, p.path, f.rel_path, f.bytes, f.ext
+         FROM files f
+         LEFT JOIN directories d ON d.id=f.directory_id
+         LEFT JOIN packages p ON p.id=f.package_id
+         WHERE f.id=?",
     )
     .bind(file_id)
     .fetch_one(&*pool)
-    .await
-    ?;
+    .await?;
 
-    let src = std::path::Path::new(&abs_pkg).join(&rel);
+    let (dir_id, dir_path, pkg_path, rel, bytes, ext) = row;
+    // 拼绝对路径
+    let src = if let Some(dp) = dir_path {
+        // 树视图：需库根 + directory.path
+        let (root,): (String,) = sqlx::query_as(
+            "SELECT l.root_path FROM libraries l
+             JOIN directories d ON d.library_id=l.id WHERE d.id=?",
+        )
+        .bind(dir_id.unwrap_or(0))
+        .fetch_one(&*pool)
+        .await?;
+        PathBuf::from(&root).join(dp).join(&rel)
+    } else {
+        // 两级视图：package.path 已是绝对路径
+        PathBuf::from(pkg_path.unwrap_or_default()).join(&rel)
+    };
 
     // 小图直接返回原路径
     if bytes < LARGE_BYTES {
