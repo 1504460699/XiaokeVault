@@ -117,23 +117,29 @@ function fmtBytes(b: number): string {
             :key="g.id"
             class="bg-slate-900 rounded p-3 border border-slate-700"
           >
-            <div class="text-sm text-amber-400 mb-1">⚠ {{ g.reason }}</div>
+            <div
+              class="text-sm mb-1"
+              :class="g.reason === 'likely_backup' ? 'text-orange-400' : 'text-amber-400'"
+            >
+              ⚠ {{ g.reason === 'likely_backup' ? '疑似备份（需人工确认）' : '冗余文件' }}
+            </div>
             <div class="text-xs text-slate-300 mb-2">{{ g.detail }}</div>
             <div
               v-for="m in g.members"
-              :key="m.file_id ?? 0"
+              :key="m.file_id ?? m.package_id ?? 0"
               class="text-xs text-slate-400 flex items-center gap-2"
             >
-              <span class="flex-1 truncate"
-                >{{ m.package_name }} / {{ m.rel_path }}</span
-              >
+              <span class="flex-1 truncate">
+                {{ m.package_name }}{{ m.rel_path ? ' / ' + m.rel_path : '' }}
+              </span>
               <button
                 v-if="m.role === 'remove' && m.file_id"
-                class="px-2 py-0.5 rounded bg-red-700 hover:bg-red-600 text-xs"
+                class="px-2 py-0.5 rounded bg-red-700 hover:bg-red-600 text-xs whitespace-nowrap"
                 @click="onRemove(g.id, m.file_id)"
               >
                 删除
               </button>
+              <span v-else-if="g.reason === 'likely_backup'" class="text-slate-500">需人工判断</span>
             </div>
           </div>
           <div

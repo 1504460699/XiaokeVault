@@ -140,6 +140,51 @@ pub async fn run_dedup(lib_id: i64, pool: State<'_, SqlitePool>) -> Result<Dedup
         }
     }
 
+    // ---- 2. likely_backup：同分类下包名相似的版本/备份 ----
+    // 取每个分类下的包，按规整后名字分组，同组内配对
+    let cats: Vec<(i64,)> = sqlx::query_as(
+        "SELECT id FROM categories WHERE library_id=? ORDER BY id")
+        .bind(lib_id).fetch_all(&*pool).await.map_err(|e| e.to_string())?;
+    for (cat_id,) in cats {
+        let cat_pkgs: Vec<(i64, String, i64)> = sqlx::query_as(
+            "SELECT id, name, file_count FROM packages WHERE category_id=? ORDER BY name")
+            .bind(cat_id).fetch_all(&*pool).await.map_err(|e| e.to_string())?;
+        // 两两比对，名字规整后相似度高的配对
+        for i in 0..cat_pkgs.len() {
+            for j in (i + 1)..cat_pkgs.len() {
+                let (id_a, name_a, fc_a) = &cat_pkgs[i];
+                let (id_b, name_b, fc_b) = &cat_pkgs[j];
+                let na = backup_norm(name_a);
+                let nb = backup_norm(name_b);
+                if na.len() < 4 || nb.len() < 4 { continue; }
+                // 相似：一个是另一个的前缀，或共同前缀 >= 较短者的 70%
+                let sim = common_prefix_ratio(&na, &nb);
+                if sim >= 0.7 || na.starts_with(&nb) || nb.starts_with(&na) {
+                    // 文件数接近（差异 <50%）才认为可能是备份
+                    let max_fc = (*fc_a).max(*fc_b) as f64;
+                    if max_fc > 0.0 {
+                        let diff = ((*fc_a - *fc_b).abs() as f64) / max_fc;
+                        if diff <= 0.5 || *fc_a == 0 || *fc_b == 0 {
+                            let (gid,): (i64,) = sqlx::query_as(
+                                "INSERT INTO duplicate_groups(reason,detail,created_at) VALUES('likely_backup',?,?) RETURNING id")
+                                .bind(format!("疑似备份：「{}」({}文件) 与 「{}」({}文件) 名称/内容相似，请人工确认", name_a, fc_a, name_b, fc_b))
+                                .bind(now)
+                                .fetch_one(&*pool).await.map_err(|e| e.to_string())?;
+                            // 都标记为 keep（不自动删，需人工判断）
+                            sqlx::query("INSERT OR IGNORE INTO duplicate_members(group_id,package_id,role) VALUES(?,?,'keep')")
+                                .bind(gid).bind(id_a).execute(&*pool).await.map_err(|e| e.to_string())?;
+                            sqlx::query("INSERT OR IGNORE INTO duplicate_members(group_id,package_id,role) VALUES(?,?,'keep')")
+                                .bind(gid).bind(id_b).execute(&*pool).await.map_err(|e| e.to_string())?;
+                            groups += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // hash 检测暂不启用（4.2万文件算 sha256 成本高，likely_backup 已覆盖主要场景）
+
     Ok(DedupReport {
         groups,
         removable_files,
@@ -149,6 +194,33 @@ pub async fn run_dedup(lib_id: i64, pool: State<'_, SqlitePool>) -> Result<Dedup
 
 #[inline]
 fn void(_: bool) {}
+
+/// 包名规整：去掉版本/年份/后缀词，小写，便于相似度比对
+fn backup_norm(s: &str) -> String {
+    s.to_lowercase()
+        .replace("完整版", "")
+        .replace("老版", "")
+        .replace("新版", "")
+        .replace("_full", "")
+        .replace("_supplemental", "")
+        .replace("_individual_organized_tiles_sprites", "")
+        .replace("图集散图", "")
+        .replace("散图", "")
+        .replace(|c: char| c.is_ascii_digit(), "")  // 去数字（年份/版本号）
+        .replace("_", "")
+        .replace(" ", "")
+}
+
+/// 两个字符串的共同前缀占较短者的比例
+fn common_prefix_ratio(a: &str, b: &str) -> f64 {
+    let min_len = a.len().min(b.len());
+    if min_len == 0 { return 0.0; }
+    let mut common = 0;
+    for (ca, cb) in a.chars().zip(b.chars()) {
+        if ca == cb { common += 1; } else { break; }
+    }
+    common as f64 / min_len as f64
+}
 
 /// 取所有重复组
 #[tauri::command]
