@@ -183,15 +183,12 @@ impl Registry {
 }
 
 use tauri::State;
-use log::info;
 
 /// 列出合并后的全表（内置默认 + 数据库覆盖）
 #[tauri::command]
 pub async fn list_asset_types(pool: State<'_, SqlitePool>) -> Result<Vec<AssetType>, String> {
     let reg = Registry::load(&pool).await.map_err(|e| e.to_string())?;
-    let all = reg.all().to_vec();
-    info!("[list_asset_types] 返回 {} 个类型", all.len());
-    Ok(all)
+    Ok(reg.all().to_vec())
 }
 
 /// 新增/编辑类型（覆盖内置或追加自定义）
@@ -206,8 +203,6 @@ pub async fn upsert_asset_type(
     pool: State<'_, SqlitePool>,
 ) -> Result<(), String> {
     let exts_json = serde_json::to_string(&extensions).map_err(|e| e.to_string())?;
-    info!("[upsert_asset_type] kind={} label={} exts={} viewer={} built_in={}",
-        kind, label, exts_json, viewer, built_in);
     sqlx::query(
         "INSERT INTO asset_types(kind,label,extensions,viewer,is_source,built_in)
          VALUES(?,?,?,?,?,?)
