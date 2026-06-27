@@ -130,6 +130,21 @@ function fmtBytes(b: number): string {
               ⚠ {{ g.reason === 'likely_backup' ? '疑似备份（需人工确认）' : '冗余文件' }}
             </div>
             <div class="text-xs text-slate-300 mb-2">{{ g.detail }}</div>
+            <!-- likely_backup：人工处理按钮 -->
+            <div v-if="g.reason === 'likely_backup'" class="flex gap-2 mb-2">
+              <button
+                class="px-2 py-0.5 rounded bg-slate-600 hover:bg-slate-500 text-xs whitespace-nowrap"
+                @click="dedup.dismissGroup(g.id)"
+              >
+                忽略（不是重复）
+              </button>
+              <button
+                class="px-2 py-0.5 rounded bg-emerald-700 hover:bg-emerald-600 text-xs whitespace-nowrap"
+                @click="dedup.dismissGroup(g.id)"
+              >
+                确认是备份（保留，不再提醒）
+              </button>
+            </div>
             <div
               v-for="m in g.members"
               :key="m.file_id ?? m.package_id ?? 0"

@@ -232,6 +232,25 @@ fn common_prefix_ratio(a: &str, b: &str) -> f64 {
     common as f64 / min_len as f64
 }
 
+/// 关闭/忽略一个重复组（人工已确认，删除该组记录，不再提醒）
+#[tauri::command]
+pub async fn dismiss_duplicate_group(
+    group_id: i64,
+    pool: State<'_, SqlitePool>,
+) -> Result<(), String> {
+    sqlx::query("DELETE FROM duplicate_members WHERE group_id=?")
+        .bind(group_id)
+        .execute(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    sqlx::query("DELETE FROM duplicate_groups WHERE id=?")
+        .bind(group_id)
+        .execute(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 /// 取所有重复组
 #[tauri::command]
 pub async fn get_duplicate_groups(pool: State<'_, SqlitePool>) -> Result<Vec<DupGroup>, String> {

@@ -59,6 +59,7 @@ pub fn run() {
             dedup::get_duplicate_groups,
             dedup::remove_duplicate,
             dedup::remove_all_duplicates,
+            dedup::dismiss_duplicate_group,
             preview::get_model_glb,
             preview::get_thumbnail,
             asset_types::list_asset_types,

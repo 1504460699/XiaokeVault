@@ -19,4 +19,7 @@ export const dedupIpc = {
   async removeAllDuplicates(backupRoot: string): Promise<BatchRemoveResult> {
     return invoke<BatchRemoveResult>("remove_all_duplicates", { backupRoot });
   },
+  async dismissGroup(groupId: number): Promise<void> {
+    return invoke<void>("dismiss_duplicate_group", { groupId });
+  },
 };

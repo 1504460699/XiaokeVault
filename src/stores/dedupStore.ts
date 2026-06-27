@@ -47,5 +47,10 @@ export const useDedupStore = defineStore("dedup", () => {
     }
   }
 
-  return { groups, report, scanning, removing, runDedup, loadGroups, removeMember, removeAll };
+  async function dismissGroup(groupId: number) {
+    await dedupIpc.dismissGroup(groupId);
+    groups.value = groups.value.filter((g) => g.id !== groupId);
+  }
+
+  return { groups, report, scanning, removing, runDedup, loadGroups, removeMember, removeAll, dismissGroup };
 });
