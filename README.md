@@ -49,3 +49,5 @@ pnpm tauri build    # 打包
 ## 许可证
 
 本项目基于 [MIT License](LICENSE) 开源，可自由使用、修改和分发（含商用），请保留版权声明。
+
+本项目使用了多个开源库，详见 [第三方许可声明](THIRD-PARTY-NOTICES.md)。
