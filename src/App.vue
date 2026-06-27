@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from "vue";
+import { listen } from "@tauri-apps/api/event";
 import TopBar from "./components/TopBar.vue";
 import CategoryTree from "./components/CategoryTree.vue";
 import PackageGrid from "./components/PackageGrid.vue";
@@ -27,6 +28,14 @@ onMounted(async () => {
     await selStore.refreshPkgStates(store.currentCategoryId);
   }
   await selStore.refreshSummary();
+
+  // 监听自动增量扫描完成事件，刷新分类列表
+  await listen("library://auto-scanned", async () => {
+    await store.loadCategories();
+    if (store.currentCategoryId !== null) {
+      await store.loadPackages();
+    }
+  });
 });
 
 // 切换分类时刷新该分类的勾选状态

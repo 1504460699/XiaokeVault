@@ -7,6 +7,7 @@ mod library;
 mod preview;
 mod scanner;
 mod selection;
+mod watcher;
 use tauri::Manager;
 use tauri_plugin_log::{Target, TargetKind};
 
@@ -35,6 +36,24 @@ pub fn run() {
                 db::migrate(&pool).await.expect("db migrate");
                 pool
             });
+            // 应用启动时，若已有库则启动文件监听（自动增量扫描）
+            {
+                let app_handle = app.handle().clone();
+                let res: (i64, String) = tauri::async_runtime::block_on(async {
+                    sqlx::query_as("SELECT id, root_path FROM libraries ORDER BY id LIMIT 1")
+                        .fetch_one(&pool)
+                        .await
+                        .unwrap_or((0, String::new()))
+                });
+                if res.0 != 0 {
+                    let _ = watcher::start_watcher(
+                        app_handle,
+                        pool.clone(),
+                        res.0,
+                        std::path::PathBuf::from(res.1),
+                    );
+                }
+            }
             app.manage(pool);
             Ok(())
         })
