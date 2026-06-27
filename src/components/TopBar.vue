@@ -2,11 +2,13 @@
 import { storeToRefs } from "pinia";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useLibraryStore } from "../stores/libraryStore";
+import { useSearchStore } from "../stores/searchStore";
 
 defineEmits<{ dedup: []; types: [] }>();
 
 const store = useLibraryStore();
 const { libraries, currentLibId, scanning, scanReport, error } = storeToRefs(store);
+const search = useSearchStore();
 
 async function onScan() {
   await store.scanCurrent();
@@ -70,6 +72,13 @@ function onLibChange(e: Event) {
     >
       类型
     </button>
+    <input
+      v-model="search.query"
+      type="text"
+      placeholder="全局搜索文件名…"
+      class="bg-slate-700 text-slate-100 px-2 py-1 rounded text-sm w-48"
+      @keyup.enter="search.run()"
+    />
     <button
       class="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-sm"
       @click="onAddLibrary"

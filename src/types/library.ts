@@ -72,3 +72,15 @@ export interface SelectionSummary {
   file_count: number;
   total_bytes: number;
 }
+
+export interface SearchHit {
+  id: number;
+  name: string;
+  ext: string;
+  kind: string;
+  bytes: number;
+  abs_path: string;
+  package_name: string;
+  category_name: string;
+  package_id: number;
+}

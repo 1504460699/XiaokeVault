@@ -9,6 +9,18 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig(async () => ({
   plugins: [vue(), tailwindcss()],
 
+  build: {
+    chunkSizeWarningLimit: 700, // three.js 独立 chunk 约 577KB，属正常
+    rollupOptions: {
+      output: {
+        // 把 three.js 独立分包，避免主 bundle 过大 + 按需加载
+        manualChunks: {
+          three: ["three"],
+        },
+      },
+    },
+  },
+
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors

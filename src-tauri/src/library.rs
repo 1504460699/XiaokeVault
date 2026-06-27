@@ -43,6 +43,65 @@ pub struct FileNode {
     pub abs_path: String,
 }
 
+/// 全局搜索结果（跨包）
+#[derive(Debug, Serialize)]
+pub struct SearchHit {
+    pub id: i64,
+    pub name: String,
+    pub ext: String,
+    pub kind: String,
+    pub bytes: i64,
+    pub abs_path: String,
+    pub package_name: String,
+    pub category_name: String,
+    pub package_id: i64,
+}
+
+/// 全局跨包搜索：按文件名模糊匹配 + 可选 kind 过滤
+#[tauri::command]
+pub async fn search_files(
+    query: String,
+    kind: Option<String>,
+    pool: State<'_, SqlitePool>,
+) -> Result<Vec<SearchHit>, String> {
+    let like = format!("%{}%", query.trim());
+    let rows: Vec<(i64, String, String, String, i64, String, String, String, i64)> = match &kind {
+        Some(k) if !k.is_empty() => sqlx::query_as(
+            "SELECT f.id, f.name, f.ext, f.kind, f.bytes, p.path || '/' || f.rel_path, p.name, c.name, p.id
+             FROM files f
+             JOIN packages p ON p.id=f.package_id
+             JOIN categories c ON c.id=p.category_id
+             WHERE f.deleted=0 AND f.kind=? AND f.name LIKE ?
+             ORDER BY f.name LIMIT 500",
+        )
+        .bind(k)
+        .bind(&like)
+        .fetch_all(&*pool)
+        .await
+        .map_err(|e| e.to_string())?,
+        _ => sqlx::query_as(
+            "SELECT f.id, f.name, f.ext, f.kind, f.bytes, p.path || '/' || f.rel_path, p.name, c.name, p.id
+             FROM files f
+             JOIN packages p ON p.id=f.package_id
+             JOIN categories c ON c.id=p.category_id
+             WHERE f.deleted=0 AND f.name LIKE ?
+             ORDER BY f.name LIMIT 500",
+        )
+        .bind(&like)
+        .fetch_all(&*pool)
+        .await
+        .map_err(|e| e.to_string())?,
+    };
+    Ok(rows
+        .into_iter()
+        .map(
+            |(id, name, ext, kind, bytes, abs_path, package_name, category_name, package_id)| SearchHit {
+                id, name, ext, kind, bytes, abs_path, package_name, category_name, package_id,
+            },
+        )
+        .collect())
+}
+
 #[tauri::command]
 pub async fn add_library(
     name: String,

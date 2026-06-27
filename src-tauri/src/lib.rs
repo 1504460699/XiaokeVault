@@ -46,6 +46,7 @@ pub fn run() {
             library::get_categories,
             library::get_packages,
             library::get_package_files,
+            library::search_files,
             selection::create_project,
             selection::list_projects,
             selection::set_selection,

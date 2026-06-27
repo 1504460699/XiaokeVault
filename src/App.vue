@@ -4,14 +4,17 @@ import TopBar from "./components/TopBar.vue";
 import CategoryTree from "./components/CategoryTree.vue";
 import PackageGrid from "./components/PackageGrid.vue";
 import PreviewPane from "./components/PreviewPane.vue";
+import SearchView from "./components/SearchView.vue";
 import ExportDialog from "./components/ExportDialog.vue";
 import DedupPanel from "./components/DedupPanel.vue";
 import TypeSettings from "./components/TypeSettings.vue";
 import { useLibraryStore } from "./stores/libraryStore";
 import { useSelectionStore } from "./stores/selectionStore";
+import { useSearchStore } from "./stores/searchStore";
 
 const store = useLibraryStore();
 const selStore = useSelectionStore();
+const searchStore = useSearchStore();
 const showExport = ref(false);
 const showDedup = ref(false);
 const showTypes = ref(false);
@@ -56,7 +59,8 @@ async function onOpenExport() {
     <TopBar @dedup="showDedup = true" @types="showTypes = true" />
     <div class="flex-1 flex overflow-hidden">
       <CategoryTree />
-      <PackageGrid />
+      <SearchView v-if="searchStore.active" />
+      <PackageGrid v-else />
       <PreviewPane @export="onOpenExport" />
     </div>
     <ExportDialog :show="showExport" @close="showExport = false" />

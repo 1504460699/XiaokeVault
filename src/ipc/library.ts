@@ -8,6 +8,7 @@ import type {
   Project,
   PackageSelectionState,
   SelectionSummary,
+  SearchHit,
 } from "../types/library";
 
 // 命令名与 src-tauri/src/lib.rs generate_handler 注册一致
@@ -29,6 +30,12 @@ export const ipc = {
   },
   async getPackageFiles(pkgId: number): Promise<FileNode[]> {
     return invoke<FileNode[]>("get_package_files", { pkgId });
+  },
+  async searchFiles(
+    query: string,
+    kind: string | null,
+  ): Promise<SearchHit[]> {
+    return invoke<SearchHit[]>("search_files", { query, kind });
   },
 
   // 项目与勾选

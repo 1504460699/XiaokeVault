@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, defineAsyncComponent } from "vue";
 import { storeToRefs } from "pinia";
 import { useLibraryStore } from "../stores/libraryStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { viewerForKind } from "../utils/viewer";
 import SelectionBar from "./SelectionBar.vue";
 import ImageViewer from "./preview/ImageViewer.vue";
-import ModelViewer from "./preview/ModelViewer.vue";
+// ModelViewer 含 three.js，按需懒加载（进 3D 预览才加载）
+const ModelViewer = defineAsyncComponent(() => import("./preview/ModelViewer.vue"));
 import TextPreview from "./preview/TextPreview.vue";
 import AudioPlayer from "./preview/AudioPlayer.vue";
 import FontPreview from "./preview/FontPreview.vue";
