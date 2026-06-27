@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, onUnmounted } from "vue";
 import { storeToRefs } from "pinia";
 import { useTypesStore } from "../stores/typesStore";
+import { listen } from "@tauri-apps/api/event";
 import type { AssetType } from "../types/library";
 
 const props = defineProps<{ show: boolean }>();
@@ -13,6 +14,8 @@ const { types, loading } = storeToRefs(store);
 const editing = ref<AssetType | null>(null);
 const extInput = ref("");
 const reclassifyMsg = ref("");
+const reclassifying = ref(false);
+const progress = ref<{ done: number; total: number } | null>(null);
 const isExisting = ref(false);
 
 const VIEWERS = [
@@ -27,7 +30,21 @@ const VIEWERS = [
   "fallback",
 ];
 
-onMounted(() => store.load());
+let unlisten: (() => void) | null = null;
+
+onMounted(async () => {
+  await store.load();
+  unlisten = await listen<{ done: number; total: number }>(
+    "reclassify://progress",
+    (e) => {
+      progress.value = e.payload;
+    },
+  );
+});
+
+onUnmounted(() => {
+  unlisten?.();
+});
 
 function startEdit(t: AssetType) {
   editing.value = { ...t };
@@ -58,15 +75,19 @@ async function save() {
     .split(",")
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
-  await store.upsert({
-    kind: editing.value.kind,
-    label: editing.value.label,
-    extensions: exts,
-    viewer: editing.value.viewer,
-    is_source: editing.value.is_source,
-    built_in: isExisting.value,
-  });
-  editing.value = null;
+  try {
+    await store.upsert({
+      kind: editing.value.kind,
+      label: editing.value.label,
+      extensions: exts,
+      viewer: editing.value.viewer,
+      is_source: editing.value.is_source,
+      built_in: isExisting.value,
+    });
+    editing.value = null;
+  } catch (e) {
+    alert("保存失败：" + String(e));
+  }
 }
 
 async function remove(kind: string) {
@@ -79,8 +100,18 @@ async function remove(kind: string) {
 }
 
 async function onReclassify() {
-  const r = await store.reclassify();
-  reclassifyMsg.value = `已重新分类 ${r.updated} 个文件`;
+  reclassifying.value = true;
+  progress.value = { done: 0, total: 0 };
+  reclassifyMsg.value = "";
+  try {
+    const r = await store.reclassify();
+    reclassifyMsg.value = `已完成，重新分类 ${r.updated} 个文件`;
+  } catch (e) {
+    reclassifyMsg.value = "失败：" + String(e);
+  } finally {
+    reclassifying.value = false;
+    progress.value = null;
+  }
 }
 </script>
 
@@ -178,16 +209,16 @@ async function onReclassify() {
                 <td class="p-1 text-xs">{{ t.viewer }}</td>
                 <td class="p-1 whitespace-nowrap">
                   <button
-                    class="px-2 py-0.5 rounded bg-slate-600 hover:bg-slate-500 text-xs mr-1"
+                    class="px-2 py-0.5 rounded bg-slate-600 hover:bg-slate-500 text-xs mr-1 whitespace-nowrap"
                     @click="startEdit(t)"
                   >
                     编辑
                   </button>
                   <button
-                    class="px-2 py-0.5 rounded bg-red-700 hover:bg-red-600 text-xs"
+                    class="px-2 py-0.5 rounded bg-red-700 hover:bg-red-600 text-xs whitespace-nowrap"
                     @click="remove(t.kind)"
                   >
-                    删
+                    删除
                   </button>
                 </td>
               </tr>
@@ -199,17 +230,29 @@ async function onReclassify() {
         </div>
 
         <!-- 重新分类 -->
-        <div class="flex items-center gap-3 mt-3 pt-3 border-t border-slate-700">
-          <button
-            class="px-3 py-1 rounded bg-amber-700 hover:bg-amber-600 text-sm"
-            @click="onReclassify"
-          >
-            按新类型重新分类全库
-          </button>
-          <span v-if="reclassifyMsg" class="text-xs text-emerald-400">{{
-            reclassifyMsg
-          }}</span>
-          <span class="text-xs text-slate-500 ml-auto">修改类型后需重新分类才生效</span>
+        <div class="mt-3 pt-3 border-t border-slate-700">
+          <div class="flex items-center gap-3 mb-2">
+            <button
+              class="px-3 py-1 rounded bg-amber-700 hover:bg-amber-600 disabled:opacity-50 text-sm"
+              :disabled="reclassifying"
+              @click="onReclassify"
+            >
+              {{ reclassifying ? "分类中…" : "按新类型重新分类全库" }}
+            </button>
+            <span v-if="reclassifyMsg" class="text-xs text-emerald-400">{{
+              reclassifyMsg
+            }}</span>
+            <span class="text-xs text-slate-500 ml-auto">修改类型后需重新分类才生效</span>
+          </div>
+          <div v-if="progress && progress.total > 0" class="flex items-center gap-2 text-xs text-slate-400">
+            <div class="flex-1 bg-slate-700 rounded h-1.5 overflow-hidden">
+              <div
+                class="bg-amber-500 h-full transition-all"
+                :style="{ width: (progress.done / progress.total) * 100 + '%' }"
+              ></div>
+            </div>
+            <span>{{ progress.done }} / {{ progress.total }}</span>
+          </div>
         </div>
 
         <div class="flex justify-end mt-3">

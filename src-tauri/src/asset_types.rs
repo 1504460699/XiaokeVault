@@ -183,12 +183,15 @@ impl Registry {
 }
 
 use tauri::State;
+use log::info;
 
 /// 列出合并后的全表（内置默认 + 数据库覆盖）
 #[tauri::command]
 pub async fn list_asset_types(pool: State<'_, SqlitePool>) -> Result<Vec<AssetType>, String> {
     let reg = Registry::load(&pool).await.map_err(|e| e.to_string())?;
-    Ok(reg.all().to_vec())
+    let all = reg.all().to_vec();
+    info!("[list_asset_types] 返回 {} 个类型", all.len());
+    Ok(all)
 }
 
 /// 新增/编辑类型（覆盖内置或追加自定义）
@@ -203,6 +206,8 @@ pub async fn upsert_asset_type(
     pool: State<'_, SqlitePool>,
 ) -> Result<(), String> {
     let exts_json = serde_json::to_string(&extensions).map_err(|e| e.to_string())?;
+    info!("[upsert_asset_type] kind={} label={} exts={} viewer={} built_in={}",
+        kind, label, exts_json, viewer, built_in);
     sqlx::query(
         "INSERT INTO asset_types(kind,label,extensions,viewer,is_source,built_in)
          VALUES(?,?,?,?,?,?)
@@ -242,25 +247,45 @@ pub struct ReclassifyReport {
 }
 
 #[tauri::command]
-pub async fn reclassify_all(pool: State<'_, SqlitePool>) -> Result<ReclassifyReport, String> {
+pub async fn reclassify_all(
+    app: tauri::AppHandle,
+    pool: State<'_, SqlitePool>,
+) -> Result<ReclassifyReport, String> {
+    use tauri::Emitter;
     let reg = Registry::load(&pool).await.map_err(|e| e.to_string())?;
     let files: Vec<(i64, String)> = sqlx::query_as("SELECT id, ext FROM files WHERE deleted=0")
         .fetch_all(&*pool)
         .await
         .map_err(|e| e.to_string())?;
+    let total = files.len() as u64;
     let mut updated = 0i64;
-    for (id, ext) in files {
-        let new_kind = reg.kind_for(&ext);
+    let mut done = 0u64;
+    // 单事务批量更新
+    let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
+    for (id, ext) in &files {
+        let new_kind = reg.kind_for(ext);
         let res = sqlx::query("UPDATE files SET kind=? WHERE id=? AND kind!=?")
             .bind(new_kind)
             .bind(id)
             .bind(new_kind)
-            .execute(&*pool)
+            .execute(&mut *tx)
             .await
             .map_err(|e| e.to_string())?;
         if res.rows_affected() > 0 {
             updated += 1;
         }
+        done += 1;
+        if done % 2000 == 0 {
+            let _ = app.emit(
+                "reclassify://progress",
+                serde_json::json!({ "done": done, "total": total }),
+            );
+        }
     }
+    tx.commit().await.map_err(|e| e.to_string())?;
+    let _ = app.emit(
+        "reclassify://progress",
+        serde_json::json!({ "done": done, "total": total }),
+    );
     Ok(ReclassifyReport { updated })
 }
