@@ -3,9 +3,9 @@ import { computed } from "vue";
 import { storeToRefs } from "pinia";
 import { useLibraryStore } from "../stores/libraryStore";
 import { useSelectionStore } from "../stores/selectionStore";
-import { getFileUrl } from "../ipc/fileUrl";
 import { viewerForKind } from "../utils/viewer";
 import SelectionBar from "./SelectionBar.vue";
+import ImageViewer from "./preview/ImageViewer.vue";
 import TextPreview from "./preview/TextPreview.vue";
 import AudioPlayer from "./preview/AudioPlayer.vue";
 import FontPreview from "./preview/FontPreview.vue";
@@ -41,24 +41,25 @@ function fmtBytes(b: number): string {
     <div class="px-3 py-2 text-sm text-slate-300 border-b border-slate-700">
       预览
     </div>
-    <div v-if="file" class="flex-1 flex flex-col overflow-auto">
+    <div v-if="file" class="flex-1 flex flex-col overflow-hidden">
+      <!-- 图片/动画/矢量：可缩放的 ImageViewer -->
+      <ImageViewer
+        v-if="viewer === 'image' || viewer === 'animated' || viewer === 'vector'"
+        :file="file"
+        class="flex-1 min-h-0"
+      />
+      <!-- 其他类型：顶对齐，可滚动 -->
       <div
-        class="flex-1 flex items-center justify-center bg-slate-900 min-h-48 overflow-auto p-2"
+        v-else
+        class="flex-1 overflow-auto bg-slate-900 p-2"
       >
-        <img
-          v-if="
-            viewer === 'image' || viewer === 'animated' || viewer === 'vector'
-          "
-          :src="getFileUrl(file)"
-          class="max-w-full max-h-96 object-contain"
-        />
-        <AudioPlayer v-else-if="viewer === 'audio'" :file="file" />
+        <AudioPlayer v-if="viewer === 'audio'" :file="file" />
         <FontPreview v-else-if="viewer === 'font'" :file="file" />
         <TextPreview v-else-if="viewer === 'text'" :file="file" />
         <SourcePlaceholder v-else-if="viewer === 'binary-source'" :file="file" />
-        <div v-else class="text-5xl">📦</div>
+        <div v-else class="text-5xl text-center py-8">📦</div>
       </div>
-      <div class="p-3 text-sm space-y-1">
+      <div class="p-3 text-sm space-y-1 border-t border-slate-700 shrink-0">
         <div class="font-medium break-all">{{ file.name }}</div>
         <div class="text-slate-400">
           {{ fmtBytes(file.bytes) }} · {{ file.ext }} · {{ file.kind }}

@@ -41,7 +41,7 @@ watch(
     <div v-else-if="error" class="text-red-400">读取失败：{{ error }}</div>
     <pre
       v-else
-      class="whitespace-pre-wrap break-all max-h-80 overflow-auto bg-slate-900 p-2 rounded"
+      class="whitespace-pre-wrap break-all bg-slate-900 p-2 rounded w-full"
       >{{ content }}</pre
     >
   </div>
