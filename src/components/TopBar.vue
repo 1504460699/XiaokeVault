@@ -3,6 +3,8 @@ import { storeToRefs } from "pinia";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useLibraryStore } from "../stores/libraryStore";
 
+defineEmits<{ dedup: [] }>();
+
 const store = useLibraryStore();
 const { libraries, currentLibId, scanning, scanReport, error } = storeToRefs(store);
 
@@ -54,6 +56,13 @@ function onLibChange(e: Event) {
       @click="onScan"
     >
       {{ scanning ? "扫描中…" : "扫描" }}
+    </button>
+    <button
+      class="px-3 py-1 rounded bg-amber-700 hover:bg-amber-600 disabled:opacity-50 text-sm"
+      :disabled="currentLibId === null"
+      @click="$emit('dedup')"
+    >
+      去重
     </button>
     <button
       class="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-sm"
