@@ -1,17 +1,32 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import { useVirtualizer } from "@tanstack/vue-virtual";
 import { useLibraryStore } from "../stores/libraryStore";
 import { useSelectionStore } from "../stores/selectionStore";
+import { useSearchStore } from "../stores/searchStore";
 import { getFileUrl } from "../ipc/fileUrl";
 import { viewerForKind, iconForViewer, canShowThumb } from "../utils/viewer";
 import type { FileNode } from "../types/library";
 
+// 外部请求定位到的文件 id（来自搜索定位）
+const props = defineProps<{ locateFileId?: number | null }>();
+const emit = defineEmits<{ located: [] }>();
+
 const store = useLibraryStore();
 const sel = useSelectionStore();
+const search = useSearchStore();
 const { files, currentPackage } = storeToRefs(store);
 const { pkgStates, selectedFileIds } = storeToRefs(sel);
+
+// 返回：搜索模式下回搜索结果，否则回包列表
+function onBack() {
+  if (search.active) {
+    store.backToPackages(); // currentPkgId=null → SearchView 显示
+  } else {
+    store.backToPackages();
+  }
+}
 
 const COLS = 6;
 const ROW_H = 150;
@@ -69,6 +84,23 @@ const virtualizer = useVirtualizer(
 const virtualItems = computed(() => virtualizer.value.getVirtualItems());
 const totalSize = computed(() => virtualizer.value.getTotalSize());
 
+// 定位到指定文件：计算其在过滤后列表的索引，滚动到对应行
+watch(
+  () => props.locateFileId,
+  (fid) => {
+    if (fid == null) return;
+    // 等 files 渲染后再滚动（nextTick）
+    setTimeout(() => {
+      const idx = filteredFiles.value.findIndex((f) => f.id === fid);
+      if (idx >= 0) {
+        const rowIndex = Math.floor(idx / COLS);
+        virtualizer.value.scrollToIndex(rowIndex, { align: "center" });
+      }
+      emit("located");
+    }, 100);
+  },
+);
+
 async function onToggleFile(e: Event, f: FileNode) {
   e.stopPropagation();
   await sel.ensureProject();
@@ -86,8 +118,8 @@ async function onToggleFile(e: Event, f: FileNode) {
     <div
       class="px-4 py-2 text-sm text-slate-400 border-b border-slate-700 shrink-0 flex items-center gap-2 flex-wrap"
     >
-      <button class="text-sky-400 hover:underline" @click="store.backToPackages()">
-        ← 返回包列表
+      <button class="text-sky-400 hover:underline" @click="onBack()">
+        ← {{ search.active ? '返回搜索结果' : '返回包列表' }}
       </button>
       <span>/ {{ currentPackage?.name }}</span>
       <span class="text-slate-500">

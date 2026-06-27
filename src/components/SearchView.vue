@@ -2,12 +2,14 @@
 import { storeToRefs } from "pinia";
 import { useSearchStore } from "../stores/searchStore";
 import { useLibraryStore } from "../stores/libraryStore";
+import { useSelectionStore } from "../stores/selectionStore";
 import { viewerForKind, iconForViewer, canShowThumb } from "../utils/viewer";
 import { getFileUrl } from "../ipc/fileUrl";
 import type { SearchHit } from "../types/library";
 
 const search = useSearchStore();
 const lib = useLibraryStore();
+const sel = useSelectionStore();
 const { results, searching } = storeToRefs(search);
 
 function fmtBytes(b: number): string {
@@ -16,18 +18,12 @@ function fmtBytes(b: number): string {
   return b + " B";
 }
 
-// 点击结果：预览该文件。把 hit 构造为 FileNode 形状供 PreviewPane
-function onHit(h: SearchHit) {
-  // 设置临时预览：通过 selectPackage 进入该包并预览
-  // 简化：直接设置 preview，但 PreviewPane 从 files 找——这里用 convert
-  // 实际跳转到所在包最一致，但会重新加载。这里先做预览提示。
-  alert(`文件：${h.name}\n分类：${h.category_name}\n包：${h.package_name}\n\n点击「定位」按钮可跳转到该包。`);
-}
-
+// 点击结果：定位到该文件所在包并预览（保持搜索状态，便于返回继续浏览结果）
 async function locate(h: SearchHit) {
-  // 跳转到该文件所在包（需要先选分类再选包）
   await lib.selectPackage(h.package_id);
-  search.close();
+  sel.setPreview(h.id);
+  search.requestLocate(h.id);
+  // 不 close：保持搜索 active，FileGrid 渲染后用户可点“返回搜索”回到结果
 }
 </script>
 
@@ -55,7 +51,7 @@ async function locate(h: SearchHit) {
           v-for="h in results"
           :key="h.id"
           class="bg-slate-800 rounded border border-slate-700 p-2 flex flex-col cursor-pointer hover:border-sky-500"
-          @click="onHit(h)"
+          @click="locate(h)"
         >
           <div class="h-20 flex items-center justify-center bg-slate-900 rounded mb-1 overflow-hidden">
             <img
@@ -70,12 +66,6 @@ async function locate(h: SearchHit) {
           <div class="text-xs text-slate-500 truncate">{{ h.category_name }} / {{ h.package_name }}</div>
           <div class="flex items-center justify-between mt-1">
             <span class="text-xs text-slate-500">{{ fmtBytes(h.bytes) }} · {{ h.kind }}</span>
-            <button
-              class="text-xs text-sky-400 hover:underline"
-              @click.stop="locate(h)"
-            >
-              定位
-            </button>
           </div>
         </div>
       </div>

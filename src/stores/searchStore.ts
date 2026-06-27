@@ -9,6 +9,8 @@ export const useSearchStore = defineStore("search", () => {
   const results = ref<SearchHit[]>([]);
   const searching = ref(false);
   const active = ref(false); // 是否显示搜索视图
+  // 定位请求：设置后 FileGrid 滚动到该文件，然后清空
+  const locateFileId = ref<number | null>(null);
 
   async function run() {
     const q = query.value.trim();
@@ -26,6 +28,16 @@ export const useSearchStore = defineStore("search", () => {
     }
   }
 
+  // 请求定位某文件（设置 id，FileGrid 监听后滚动）
+  function requestLocate(fileId: number) {
+    locateFileId.value = fileId;
+  }
+
+  // FileGrid 滚动完成后调用，清空定位请求
+  function consumeLocate() {
+    locateFileId.value = null;
+  }
+
   function close() {
     active.value = false;
   }
@@ -37,5 +49,5 @@ export const useSearchStore = defineStore("search", () => {
     active.value = false;
   }
 
-  return { query, kind, results, searching, active, run, close, clear };
+  return { query, kind, results, searching, active, locateFileId, run, requestLocate, consumeLocate, close, clear };
 });

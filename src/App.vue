@@ -59,7 +59,7 @@ async function onOpenExport() {
     <TopBar @dedup="showDedup = true" @types="showTypes = true" />
     <div class="flex-1 flex overflow-hidden">
       <CategoryTree />
-      <SearchView v-if="searchStore.active" />
+      <SearchView v-if="searchStore.active && store.currentPkgId === null" />
       <PackageGrid v-else />
       <PreviewPane @export="onOpenExport" />
     </div>

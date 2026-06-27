@@ -2,12 +2,19 @@
 import { storeToRefs } from "pinia";
 import { useLibraryStore } from "../stores/libraryStore";
 import { useSelectionStore } from "../stores/selectionStore";
+import { useSearchStore } from "../stores/searchStore";
 import FileGrid from "./FileGrid.vue";
 
 const store = useLibraryStore();
 const sel = useSelectionStore();
+const search = useSearchStore();
 const { currentPkgId, packages } = storeToRefs(store);
 const { pkgStates } = storeToRefs(sel);
+const { locateFileId } = storeToRefs(search);
+
+function onLocated() {
+  search.consumeLocate();
+}
 
 function fmtBytes(b: number): string {
   if (b > 1e9) return (b / 1e9).toFixed(1) + " GB";
@@ -29,7 +36,7 @@ async function onTogglePkg(e: Event, pkgId: number) {
 
 <template>
   <main class="flex-1 overflow-hidden flex flex-col">
-    <FileGrid v-if="currentPkgId !== null" />
+    <FileGrid v-if="currentPkgId !== null" :locate-file-id="locateFileId" @located="onLocated" />
     <template v-else>
       <div
         class="px-4 py-2 text-sm text-slate-400 border-b border-slate-700 shrink-0"
