@@ -1,3 +1,4 @@
+mod asset_types;
 mod db;
 use tauri::Manager;
 
