@@ -1,6 +1,7 @@
 mod asset_types;
 mod db;
 mod indexer;
+mod library;
 mod scanner;
 use tauri::Manager;
 
@@ -23,7 +24,15 @@ pub fn run() {
             app.manage(pool);
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![greet])
+        .invoke_handler(tauri::generate_handler![
+            greet,
+            library::add_library,
+            library::list_libraries,
+            library::scan_library_full,
+            library::get_categories,
+            library::get_packages,
+            library::get_package_files
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
