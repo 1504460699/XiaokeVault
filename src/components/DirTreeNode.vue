@@ -19,9 +19,8 @@ function fmtBytes(b: number): string {
 }
 
 function onClickName() {
-  if (props.node.file_count > 0) {
-    store.selectDirectory(props.node.id);
-  }
+  // 点任何文件夹都显示其内容（递归包含子目录的文件）
+  store.selectDirectory(props.node.id);
 }
 </script>
 
@@ -41,14 +40,13 @@ function onClickName() {
       <span v-else class="inline-block w-3"></span>
       <!-- 文件夹图标 -->
       <span class="text-amber-400">{{ expanded && node.children.length ? '📂' : '📁' }}</span>
-      <!-- 名称 -->
+      <!-- 名称（点击显示该文件夹内容）-->
       <span
-        class="flex-1 truncate"
-        :class="node.file_count > 0 ? 'text-slate-200' : 'text-slate-500'"
+        class="flex-1 truncate text-slate-200"
         :title="node.path"
         @click="onClickName"
       >{{ node.name }}</span>
-      <!-- 统计 -->
+      <!-- 统计（直接含的文件数，提示该文件夹本身的内容量）-->
       <span v-if="node.file_count > 0" class="text-xs text-slate-500 whitespace-nowrap">
         {{ node.file_count }} · {{ fmtBytes(node.total_bytes) }}
       </span>

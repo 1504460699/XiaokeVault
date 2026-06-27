@@ -24,7 +24,8 @@ export const useTreeStore = defineStore("tree", () => {
 
   async function selectDirectory(dirId: number) {
     currentDirId.value = dirId;
-    files.value = await ipc.getDirectoryFiles(dirId);
+    // 递归取该目录及所有子目录的文件（点中间文件夹也能看到全部内容）
+    files.value = await ipc.getSubtreeFiles(dirId);
   }
 
   function clearFiles() {
