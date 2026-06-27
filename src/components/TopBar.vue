@@ -48,7 +48,7 @@ function onLangChange(e: Event) {
 
 <template>
   <header
-    class="flex items-center gap-2 px-3 h-12 bg-slate-800 border-b border-slate-700 shrink-0"
+    class="relative flex items-center gap-2 px-3 h-12 bg-slate-800 border-b border-slate-700 shrink-0"
     data-tauri-drag-region
   >
     <!-- 品牌（不可压缩）-->
@@ -101,8 +101,8 @@ function onLangChange(e: Event) {
       class="bg-slate-700 text-slate-100 px-2 py-1 rounded text-sm flex-1 min-w-[120px] max-w-[280px]"
       @keyup.enter="search.run()"
     />
-    <!-- 右侧状态区 -->
-    <div class="flex items-center gap-2 shrink-0 text-xs text-slate-400">
+    <!-- 右侧状态区（mr 给右上角窗口按钮留位）-->
+    <div class="flex items-center gap-2 shrink-0 text-xs text-slate-400 mr-[132px] ml-auto">
       <span v-if="autoScanning" class="text-sky-400 animate-pulse whitespace-nowrap">{{ t("topbar.autoScanning") }}</span>
       <select
         class="bg-slate-700 text-slate-100 px-1 py-0.5 rounded text-xs"

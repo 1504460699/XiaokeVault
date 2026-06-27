@@ -30,7 +30,7 @@ async function close() {
 </script>
 
 <template>
-  <div class="flex items-center shrink-0">
+  <div class="flex items-center shrink-0 absolute right-0 top-0 h-12 z-20">
     <button
       class="w-11 h-8 flex items-center justify-center text-slate-300 hover:bg-slate-700 transition-colors"
       :title="t('window.minimize')"
