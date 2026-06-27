@@ -50,6 +50,7 @@ pub fn run() {
             selection::list_projects,
             selection::set_selection,
             selection::clear_selections,
+            selection::get_selected_file_ids,
             selection::get_category_selection_states,
             selection::get_selection_summary,
             exporter::run_export,

@@ -84,9 +84,14 @@ export const useSelectionStore = defineStore("selection", () => {
     pkgStates.value = m;
   }
 
-  /// 进入包时重置文件级勾选集合
-  function resetFileSelections() {
-    selectedFileIds.value = new Set();
+  /// 进入包时从 DB 回填已勾选的文件 ID（持久化读取）
+  async function loadFileSelections(pkgId: number) {
+    if (currentProjectId.value === null) {
+      selectedFileIds.value = new Set();
+      return;
+    }
+    const ids = await ipc.getSelectedFileIds(currentProjectId.value, pkgId);
+    selectedFileIds.value = new Set(ids);
   }
 
   /// 清空当前项目的所有勾选
@@ -119,7 +124,7 @@ export const useSelectionStore = defineStore("selection", () => {
     toggleFile,
     clearAll,
     refreshPkgStates,
-    resetFileSelections,
+    loadFileSelections,
     refreshSummary,
   };
 });

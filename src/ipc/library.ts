@@ -68,4 +68,7 @@ export const ipc = {
   async clearSelections(projectId: number): Promise<void> {
     return invoke<void>("clear_selections", { projectId });
   },
+  async getSelectedFileIds(projectId: number, pkgId: number): Promise<number[]> {
+    return invoke<number[]>("get_selected_file_ids", { projectId, pkgId });
+  },
 };

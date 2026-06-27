@@ -124,6 +124,26 @@ pub async fn clear_selections(project_id: i64, pool: State<'_, SqlitePool>) -> R
     Ok(())
 }
 
+/// 查某包内已被单文件勾选的 file_id 列表（进包时回填 UI 用）
+#[tauri::command]
+pub async fn get_selected_file_ids(
+    project_id: i64,
+    pkg_id: i64,
+    pool: State<'_, SqlitePool>,
+) -> Result<Vec<i64>, String> {
+    let ids: Vec<i64> = sqlx::query_scalar(
+        "SELECT file_id FROM selections
+         WHERE project_id=? AND scope='file' AND file_id IS NOT NULL
+           AND file_id IN (SELECT id FROM files WHERE package_id=?)",
+    )
+    .bind(project_id)
+    .bind(pkg_id)
+    .fetch_all(&*pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(ids)
+}
+
 /// 查某分类下各包的勾选状态
 #[tauri::command]
 pub async fn get_category_selection_states(

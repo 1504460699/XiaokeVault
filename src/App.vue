@@ -34,11 +34,11 @@ watch(
   },
 );
 
-// 进包时重置文件级勾选集合
+// 进包时从 DB 回填已勾选的文件（持久化读取）
 watch(
   () => store.currentPkgId,
-  () => {
-    selStore.resetFileSelections();
+  async (pkgId) => {
+    if (pkgId !== null) await selStore.loadFileSelections(pkgId);
   },
 );
 

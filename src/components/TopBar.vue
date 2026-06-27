@@ -76,11 +76,19 @@ function onLibChange(e: Event) {
     >
       + 添加库
     </button>
-    <div class="ml-auto text-xs text-slate-400">
+    <div class="ml-auto text-xs text-slate-400 flex items-center gap-2">
       <span v-if="scanReport"
         >上次扫描：{{ scanReport.total_files }} 文件 /
         {{ Math.round(scanReport.duration_ms / 1000) }}s</span
       >
+      <button
+        v-if="scanReport && scanReport.unknown_extensions.length > 0"
+        class="px-2 py-0.5 rounded bg-amber-700 hover:bg-amber-600 text-amber-50"
+        :title="scanReport.unknown_extensions.map((e) => '.' + e[0] + '×' + e[1]).join(' ')"
+        @click="$emit('types')"
+      >
+        发现 {{ scanReport.unknown_extensions.length }} 种未知类型 → 管理类型
+      </button>
       <span v-if="error" class="text-red-400">⚠ {{ error }}</span>
     </div>
   </header>

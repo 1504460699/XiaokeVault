@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted, watch } from "vue";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
+import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 import { ColladaLoader } from "three/examples/jsm/loaders/ColladaLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { convertFileSrc } from "@tauri-apps/api/core";
@@ -96,6 +97,9 @@ async function loadModel(f: FileNode) {
     } else if (ext === "dae") {
       const res = await loadAny(new ColladaLoader() as any, url);
       addObject((res as any).scene);
+    } else if (ext === "fbx") {
+      const obj = await loadAny(new FBXLoader() as any, url);
+      addObject(obj as THREE.Object3D);
     } else if (ext === "blend") {
       status.value = "正在用 Blender 转换为 glb…（首次较慢）";
       const { getModelGlb } = await import("../../ipc/model");
@@ -107,8 +111,6 @@ async function loadModel(f: FileNode) {
         const gltf = await loadAny(new GLTFLoader() as any, convertFileSrc(res.path));
         addObject((gltf as any).scene);
       }
-    } else if (ext === "fbx") {
-      status.value = "fbx 加载需要 fflate 依赖（M6 待补）";
     } else if (ext === "mtl" || ext === "dds" || ext === "tga") {
       status.value = `${ext} 是 3D 模型的配套资源（材质/贴图），非独立模型`;
     } else {
