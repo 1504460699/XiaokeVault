@@ -3,6 +3,7 @@ import { storeToRefs } from "pinia";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useLibraryStore } from "../stores/libraryStore";
 import { useSearchStore } from "../stores/searchStore";
+import WindowControls from "./WindowControls.vue";
 
 defineEmits<{ dedup: []; types: [] }>();
 
@@ -40,6 +41,7 @@ function onLibChange(e: Event) {
 <template>
   <header
     class="flex items-center gap-3 px-4 h-12 bg-slate-800 border-b border-slate-700 shrink-0"
+    data-tauri-drag-region
   >
     <span class="font-bold text-sky-400">XiaokeTools</span>
     <select
@@ -100,5 +102,6 @@ function onLibChange(e: Event) {
       </button>
       <span v-if="error" class="text-red-400">⚠ {{ error }}</span>
     </div>
+    <WindowControls />
   </header>
 </template>
