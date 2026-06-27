@@ -1,5 +1,6 @@
 mod asset_types;
 mod db;
+mod indexer;
 mod scanner;
 use tauri::Manager;
 
