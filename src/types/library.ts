@@ -53,3 +53,22 @@ export interface AssetType {
   icon: string | null;
   is_source: boolean;
 }
+
+export interface Project {
+  id: number;
+  name: string;
+  export_root: string;
+}
+
+export interface PackageSelectionState {
+  package_id: number;
+  state: "all" | "partial" | "excluded" | "none";
+  file_count: number;
+  selected_files: number;
+}
+
+export interface SelectionSummary {
+  package_count: number;
+  file_count: number;
+  total_bytes: number;
+}

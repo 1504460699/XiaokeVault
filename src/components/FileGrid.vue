@@ -10,10 +10,17 @@ import type { FileNode } from "../types/library";
 const store = useLibraryStore();
 const sel = useSelectionStore();
 const { files, currentPackage } = storeToRefs(store);
+const { currentProjectId, pkgStates, selectedFileIds } = storeToRefs(sel);
 
 const COLS = 6;
 const ROW_H = 150;
 const GAP = 12;
+
+// 当前包是否整包勾选
+const pkgAllSelected = computed(() => {
+  if (store.currentPkgId === null) return false;
+  return pkgStates.value[store.currentPkgId] === "all";
+});
 
 // 把文件切成行（每行 COLS 个）
 const rows = computed<FileNode[][]>(() => {
@@ -25,7 +32,6 @@ const rows = computed<FileNode[][]>(() => {
 
 const parentRef = ref<HTMLElement | null>(null);
 
-// virtualizer 用响应式 options：count 变化时自动重建
 const virtualizer = useVirtualizer(
   computed(() => ({
     count: Math.ceil(files.value.length / COLS),
@@ -35,9 +41,22 @@ const virtualizer = useVirtualizer(
   })),
 );
 
-// 响应式提取虚拟项和总高度
 const virtualItems = computed(() => virtualizer.value.getVirtualItems());
 const totalSize = computed(() => virtualizer.value.getTotalSize());
+
+async function onToggleFile(e: Event, f: FileNode) {
+  e.stopPropagation();
+  if (currentProjectId.value === null) {
+    alert("请先点击右上角“导出”创建项目");
+    return;
+  }
+  if (pkgAllSelected.value) {
+    alert("该包已整包勾选。如需精确控制，请先取消整包勾选。");
+    return;
+  }
+  const isSel = selectedFileIds.value.has(f.id);
+  await sel.toggleFile(f.id, isSel);
+}
 
 function isImage(f: FileNode): boolean {
   return f.kind === "image";
@@ -80,12 +99,18 @@ function isImage(f: FileNode): boolean {
           <div
             v-for="f in rows[vRow.index]"
             :key="f.id"
-            class="bg-slate-800 rounded border border-slate-700 flex flex-col overflow-hidden cursor-pointer hover:border-sky-500"
+            class="relative bg-slate-800 rounded border border-slate-700 flex flex-col overflow-hidden cursor-pointer hover:border-sky-500"
             :class="
               f.id === sel.previewFileId ? 'border-sky-400 ring-1 ring-sky-400' : ''
             "
             @click="sel.setPreview(f.id)"
           >
+            <input
+              type="checkbox"
+              class="absolute top-1 left-1 z-10 accent-sky-500"
+              :checked="pkgAllSelected || selectedFileIds.has(f.id)"
+              @click="onToggleFile($event, f)"
+            />
             <div
               class="flex-1 flex items-center justify-center bg-slate-900 overflow-hidden"
             >

@@ -75,19 +75,20 @@ pub async fn run_export(
     app: AppHandle,
     project_id: i64,
     format: String,
+    export_root: String,
     pool: State<'_, SqlitePool>,
 ) -> Result<ExportResult, String> {
-    let (proj_name, _export_root): (String, String) =
-        sqlx::query_as("SELECT name, export_root FROM projects WHERE id=?")
-            .bind(project_id)
-            .fetch_one(&*pool)
-            .await
-            .map_err(|e| e.to_string())?;
-
-    // 用项目记录的 export_root
-    let (export_root,): (String,) = sqlx::query_as("SELECT export_root FROM projects WHERE id=?")
+    let (proj_name,): (String,) = sqlx::query_as("SELECT name FROM projects WHERE id=?")
         .bind(project_id)
         .fetch_one(&*pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // 更新项目的 export_root（用户在对话框选择的导出位置）
+    sqlx::query("UPDATE projects SET export_root=? WHERE id=?")
+        .bind(&export_root)
+        .bind(project_id)
+        .execute(&*pool)
         .await
         .map_err(|e| e.to_string())?;
 

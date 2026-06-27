@@ -4,11 +4,14 @@ import { storeToRefs } from "pinia";
 import { useLibraryStore } from "../stores/libraryStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { getFileUrl } from "../ipc/fileUrl";
+import SelectionBar from "./SelectionBar.vue";
 
 const lib = useLibraryStore();
 const sel = useSelectionStore();
 const { files } = storeToRefs(lib);
 const { previewFileId } = storeToRefs(sel);
+
+defineEmits<{ export: [] }>();
 
 const file = computed(
   () => files.value.find((f) => f.id === previewFileId.value) ?? null,
@@ -25,6 +28,7 @@ function fmtBytes(b: number): string {
   <aside
     class="w-80 shrink-0 border-l border-slate-700 bg-slate-800/50 flex flex-col"
   >
+    <SelectionBar @export="$emit('export')" />
     <div class="px-3 py-2 text-sm text-slate-300 border-b border-slate-700">
       预览
     </div>

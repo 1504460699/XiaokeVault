@@ -5,6 +5,9 @@ import type {
   PackageSummary,
   FileNode,
   ScanReport,
+  Project,
+  PackageSelectionState,
+  SelectionSummary,
 } from "../types/library";
 
 // 命令名与 src-tauri/src/lib.rs generate_handler 注册一致
@@ -26,5 +29,40 @@ export const ipc = {
   },
   async getPackageFiles(pkgId: number): Promise<FileNode[]> {
     return invoke<FileNode[]>("get_package_files", { pkgId });
+  },
+
+  // 项目与勾选
+  async createProject(name: string, exportRoot: string): Promise<Project> {
+    return invoke<Project>("create_project", { name, exportRoot });
+  },
+  async listProjects(): Promise<Project[]> {
+    return invoke<Project[]>("list_projects");
+  },
+  async setSelection(
+    projectId: number,
+    scope: "package" | "file" | "exclude",
+    packageId: number | null,
+    fileId: number | null,
+    action: "add" | "remove",
+  ): Promise<void> {
+    return invoke<void>("set_selection", {
+      projectId,
+      scope,
+      packageId,
+      fileId,
+      action,
+    });
+  },
+  async getCategorySelectionStates(
+    projectId: number,
+    categoryId: number,
+  ): Promise<PackageSelectionState[]> {
+    return invoke<PackageSelectionState[]>("get_category_selection_states", {
+      projectId,
+      categoryId,
+    });
+  },
+  async getSelectionSummary(projectId: number): Promise<SelectionSummary> {
+    return invoke<SelectionSummary>("get_selection_summary", { projectId });
   },
 };

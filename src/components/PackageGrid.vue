@@ -1,16 +1,32 @@
 <script setup lang="ts">
 import { storeToRefs } from "pinia";
 import { useLibraryStore } from "../stores/libraryStore";
+import { useSelectionStore } from "../stores/selectionStore";
 import FileGrid from "./FileGrid.vue";
 
 const store = useLibraryStore();
+const sel = useSelectionStore();
 const { currentPkgId, packages } = storeToRefs(store);
+const { pkgStates, currentProjectId } = storeToRefs(sel);
 
 function fmtBytes(b: number): string {
   if (b > 1e9) return (b / 1e9).toFixed(1) + " GB";
   if (b > 1e6) return (b / 1e6).toFixed(1) + " MB";
   if (b > 1e3) return (b / 1e3).toFixed(0) + " KB";
   return b + " B";
+}
+
+async function onTogglePkg(e: Event, pkgId: number) {
+  e.stopPropagation();
+  if (currentProjectId.value === null) {
+    alert("请先点击右上角“导出”创建项目");
+    return;
+  }
+  const isAll = pkgStates.value[pkgId] === "all";
+  await sel.togglePackage(pkgId, isAll);
+  if (store.currentCategoryId !== null) {
+    await sel.refreshPkgStates(store.currentCategoryId);
+  }
 }
 </script>
 
@@ -33,7 +49,15 @@ function fmtBytes(b: number): string {
           class="bg-slate-800 rounded-lg p-3 cursor-pointer hover:bg-slate-700 border border-slate-700"
           @click="store.selectPackage(pkg.id)"
         >
-          <div class="font-medium text-sm truncate">{{ pkg.name }}</div>
+          <div class="flex items-center">
+            <input
+              type="checkbox"
+              class="mr-2 accent-sky-500"
+              :checked="pkgStates[pkg.id] === 'all'"
+              @click="onTogglePkg($event, pkg.id)"
+            />
+            <span class="font-medium text-sm truncate flex-1">{{ pkg.name }}</span>
+          </div>
           <div class="text-xs text-slate-400 mt-1">
             {{ pkg.file_count }} 文件 · {{ fmtBytes(pkg.total_bytes) }}
           </div>
