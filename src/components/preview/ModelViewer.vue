@@ -98,8 +98,18 @@ async function loadModel(f: FileNode) {
       const res = await loadAny(new ColladaLoader() as any, url);
       addObject((res as any).scene);
     } else if (ext === "fbx") {
-      const obj = await loadAny(new FBXLoader() as any, url);
-      addObject(obj as THREE.Object3D);
+      try {
+        const obj = await loadAny(new FBXLoader() as any, url);
+        addObject(obj as THREE.Object3D);
+      } catch (fbxErr) {
+        const msg = String(fbxErr);
+        if (msg.includes("not supported") || msg.includes("version")) {
+          status.value =
+            "此 FBX 文件版本过低（FBX 6.x），预览仅支持 FBX 7.0+。可用 Blender 或 Maya 转换为 FBX 7 / glb。";
+        } else {
+          throw fbxErr;
+        }
+      }
     } else if (ext === "blend") {
       status.value = "正在用 Blender 转换为 glb…（首次较慢）";
       const { getModelGlb } = await import("../../ipc/model");
