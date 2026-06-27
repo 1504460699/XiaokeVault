@@ -14,7 +14,7 @@ const url = computed(() => getFileUrl(props.file));
 <template>
   <div class="w-full flex flex-col items-center gap-2 py-4">
     <div class="text-5xl">🎵</div>
-    <div class="text-xs text-slate-400 truncate max-w-full">
+    <div class="text-xs text-slate-400 truncate max-w-full" :title="props.file.name">
       {{ props.file.name }}
     </div>
     <!-- key 绑定 file.id，切换时强制重建 audio 元素，避免播放状态残留 -->

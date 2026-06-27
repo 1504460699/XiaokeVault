@@ -150,7 +150,7 @@ function fmtBytes(b: number): string {
               :key="m.file_id ?? m.package_id ?? 0"
               class="text-xs text-slate-400 flex items-center gap-2"
             >
-              <span class="flex-1 truncate">
+              <span class="flex-1 truncate" :title="`${m.package_name}${m.rel_path ? ' / ' + m.rel_path : ''}`">
                 {{ m.package_name }}{{ m.rel_path ? ' / ' + m.rel_path : '' }}
               </span>
               <button

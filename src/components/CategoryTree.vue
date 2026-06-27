@@ -29,7 +29,7 @@ function fmtBytes(b: number): string {
         "
         @click="store.selectCategory(cat.id)"
       >
-        <div class="text-sm truncate">{{ cat.name }}</div>
+        <div class="text-sm truncate" :title="cat.name">{{ cat.name }}</div>
         <div class="text-xs text-slate-400">
           {{ t("category.pkgCount", { n: cat.package_count, f: cat.file_count, b: fmtBytes(cat.total_bytes) }) }}
         </div>

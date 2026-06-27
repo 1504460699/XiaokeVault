@@ -194,7 +194,7 @@ async function onToggleFile(e: Event, f: FileNode) {
                 {{ iconForViewer(viewerForKind(f.kind)) }}
               </div>
             </div>
-            <div class="text-xs text-slate-400 truncate px-1 py-0.5">
+            <div class="text-xs text-slate-400 truncate px-1 py-0.5" :title="f.name">
               {{ f.name }}
             </div>
           </div>

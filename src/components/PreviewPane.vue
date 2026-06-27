@@ -67,11 +67,11 @@ function fmtBytes(b: number): string {
       <!-- 3D 模型：独立视口 -->
       <ModelViewer v-else :file="file" class="flex-1 min-h-0" />
       <div class="p-3 text-sm space-y-1 border-t border-slate-700 shrink-0">
-        <div class="font-medium break-all">{{ file.name }}</div>
+        <div class="font-medium truncate" :title="file.name">{{ file.name }}</div>
         <div class="text-slate-400">
           {{ fmtBytes(file.bytes) }} · {{ file.ext }} · {{ file.kind }}
         </div>
-        <div class="text-slate-500 text-xs break-all">{{ file.rel_path }}</div>
+        <div class="text-slate-500 text-xs truncate" :title="file.rel_path">{{ file.rel_path }}</div>
       </div>
     </div>
     <div

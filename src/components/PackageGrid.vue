@@ -63,7 +63,7 @@ async function onTogglePkg(e: Event, pkgId: number) {
               :checked="pkgStates[pkg.id] === 'all'"
               @click="onTogglePkg($event, pkg.id)"
             />
-            <span class="font-medium text-sm truncate flex-1">{{ pkg.name }}</span>
+            <span class="font-medium text-sm truncate flex-1" :title="pkg.name">{{ pkg.name }}</span>
           </div>
           <div class="text-xs text-slate-400 mt-1">
             {{ pkg.file_count }} {{ t("common.files") }} · {{ fmtBytes(pkg.total_bytes) }}

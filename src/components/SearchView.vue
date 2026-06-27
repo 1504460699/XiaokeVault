@@ -65,7 +65,7 @@ async function locate(h: SearchHit) {
             <div v-else class="text-3xl">{{ iconForViewer(viewerForKind(h.kind)) }}</div>
           </div>
           <div class="text-xs text-slate-200 truncate" :title="h.name">{{ h.name }}</div>
-          <div class="text-xs text-slate-500 truncate">{{ h.category_name }} / {{ h.package_name }}</div>
+          <div class="text-xs text-slate-500 truncate" :title="`${h.category_name} / ${h.package_name}`">{{ h.category_name }} / {{ h.package_name }}</div>
           <div class="flex items-center justify-between mt-1">
             <span class="text-xs text-slate-500">{{ fmtBytes(h.bytes) }} · {{ h.kind }}</span>
           </div>
