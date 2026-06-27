@@ -9,8 +9,7 @@ const props = defineProps<{ show: boolean }>();
 const emit = defineEmits<{ close: [] }>();
 
 const dedup = useDedupStore();
-const lib = useLibraryStore();
-const { groups, report, scanning, removing } = storeToRefs(dedup);
+const lib = useLibraryStore();const { groups, report, scanning, removing } = storeToRefs(dedup);
 
 const backupRoot = ref("");
 const lastResult = ref<string | null>(null);
@@ -45,6 +44,13 @@ async function onRemoveAll() {
   if (!confirm(`确认一键清理 ${report.value?.removable_files ?? 0} 个冗余文件？\n文件会移到：${backupRoot.value}`)) return;
   const r = await dedup.removeAll(backupRoot.value);
   lastResult.value = `已清理 ${r.removed} 个文件${r.failed ? `，${r.failed} 个失败` : ""}`;
+}
+
+// 跳转到包（关闭面板，定位到该包）
+async function locatePackage(pkgId: number | null) {
+  if (pkgId === null) return;
+  emit("close");
+  await lib.selectPackage(pkgId);
 }
 
 function fmtBytes(b: number): string {
@@ -139,7 +145,16 @@ function fmtBytes(b: number): string {
               >
                 删除
               </button>
-              <span v-else-if="g.reason === 'likely_backup'" class="text-slate-500">需人工判断</span>
+              <span v-else-if="g.reason === 'likely_backup'" class="flex items-center gap-1">
+                <span class="text-slate-500">需人工判断</span>
+                <button
+                  v-if="m.package_id"
+                  class="px-1.5 py-0.5 rounded bg-slate-600 hover:bg-sky-600 text-slate-300 text-xs whitespace-nowrap"
+                  @click="locatePackage(m.package_id)"
+                >
+                  打开包
+                </button>
+              </span>
             </div>
           </div>
           <div

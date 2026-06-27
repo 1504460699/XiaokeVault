@@ -149,7 +149,6 @@ pub async fn run_dedup(lib_id: i64, pool: State<'_, SqlitePool>) -> Result<Dedup
         let cat_pkgs: Vec<(i64, String, i64)> = sqlx::query_as(
             "SELECT id, name, file_count FROM packages WHERE category_id=? ORDER BY name")
             .bind(cat_id).fetch_all(&*pool).await.map_err(|e| e.to_string())?;
-        // 两两比对，名字规整后相似度高的配对
         for i in 0..cat_pkgs.len() {
             for j in (i + 1)..cat_pkgs.len() {
                 let (id_a, name_a, fc_a) = &cat_pkgs[i];
@@ -157,26 +156,25 @@ pub async fn run_dedup(lib_id: i64, pool: State<'_, SqlitePool>) -> Result<Dedup
                 let na = backup_norm(name_a);
                 let nb = backup_norm(name_b);
                 if na.len() < 4 || nb.len() < 4 { continue; }
-                // 相似：一个是另一个的前缀，或共同前缀 >= 较短者的 70%
                 let sim = common_prefix_ratio(&na, &nb);
-                if sim >= 0.7 || na.starts_with(&nb) || nb.starts_with(&na) {
-                    // 文件数接近（差异 <50%）才认为可能是备份
-                    let max_fc = (*fc_a).max(*fc_b) as f64;
-                    if max_fc > 0.0 {
-                        let diff = ((*fc_a - *fc_b).abs() as f64) / max_fc;
-                        if diff <= 0.5 || *fc_a == 0 || *fc_b == 0 {
-                            let (gid,): (i64,) = sqlx::query_as(
-                                "INSERT INTO duplicate_groups(reason,detail,created_at) VALUES('likely_backup',?,?) RETURNING id")
-                                .bind(format!("疑似备份：「{}」({}文件) 与 「{}」({}文件) 名称/内容相似，请人工确认", name_a, fc_a, name_b, fc_b))
-                                .bind(now)
-                                .fetch_one(&*pool).await.map_err(|e| e.to_string())?;
-                            // 都标记为 keep（不自动删，需人工判断）
-                            sqlx::query("INSERT OR IGNORE INTO duplicate_members(group_id,package_id,role) VALUES(?,?,'keep')")
-                                .bind(gid).bind(id_a).execute(&*pool).await.map_err(|e| e.to_string())?;
-                            sqlx::query("INSERT OR IGNORE INTO duplicate_members(group_id,package_id,role) VALUES(?,?,'keep')")
-                                .bind(gid).bind(id_b).execute(&*pool).await.map_err(|e| e.to_string())?;
-                            groups += 1;
-                        }
+                // 必须同时满足：名字相似度高 + 至少一方含明确的"备份/版本"语义信号
+                // （避免同资源不同分辨率被误报，如 32x32 vs 64x64）
+                let looks_like_backup = sim >= 0.7 && has_backup_signal(name_a, name_b);
+                if !looks_like_backup { continue; }
+                let max_fc = (*fc_a).max(*fc_b) as f64;
+                if max_fc > 0.0 {
+                    let diff = ((*fc_a - *fc_b).abs() as f64) / max_fc;
+                    if diff <= 0.5 || *fc_a == 0 || *fc_b == 0 {
+                        let (gid,): (i64,) = sqlx::query_as(
+                            "INSERT INTO duplicate_groups(reason,detail,created_at) VALUES('likely_backup',?,?) RETURNING id")
+                            .bind(format!("疑似备份：「{}」({}文件) 与 「{}」({}文件) 名称相似且含版本/备份标识，请人工确认", name_a, fc_a, name_b, fc_b))
+                            .bind(now)
+                            .fetch_one(&*pool).await.map_err(|e| e.to_string())?;
+                        sqlx::query("INSERT OR IGNORE INTO duplicate_members(group_id,package_id,role) VALUES(?,?,'keep')")
+                            .bind(gid).bind(id_a).execute(&*pool).await.map_err(|e| e.to_string())?;
+                        sqlx::query("INSERT OR IGNORE INTO duplicate_members(group_id,package_id,role) VALUES(?,?,'keep')")
+                            .bind(gid).bind(id_b).execute(&*pool).await.map_err(|e| e.to_string())?;
+                        groups += 1;
                     }
                 }
             }
@@ -194,6 +192,18 @@ pub async fn run_dedup(lib_id: i64, pool: State<'_, SqlitePool>) -> Result<Dedup
 
 #[inline]
 fn void(_: bool) {}
+
+/// 判断是否含明确的"备份/版本"语义信号（避免分辨率/规格差异被误报）
+/// 至少一方含这些词，才认为是可能的备份
+fn has_backup_signal(a: &str, b: &str) -> bool {
+    let signals = [
+        "完整版", "老版", "新版", "备份", "backup", "copy", "_full",
+        "_supplemental", "v2", "v3", "2010", "2017", "2018", "2019", "2020",
+        "图集散图",  // 散图 vs 整理版
+    ];
+    let combined = format!("{} {}", a.to_lowercase(), b.to_lowercase());
+    signals.iter().any(|s| combined.contains(s))
+}
 
 /// 包名规整：去掉版本/年份/后缀词，小写，便于相似度比对
 fn backup_norm(s: &str) -> String {
