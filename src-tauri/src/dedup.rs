@@ -113,10 +113,6 @@ pub async fn run_dedup(lib_id: i64, pool: State<'_, SqlitePool>) -> Result<Dedup
                     .fetch_optional(&*pool)
                     .await
                     .map_err(|e| e.to_string())?;
-                    log::info!(
-                        "[dedup] pkg={} zip={} matched_dir={} file_id={:?}",
-                        pkg_id, zip_name, dir_name, zip_file
-                    );
                     if let Some((fid,)) = zip_file {
                         sqlx::query(
                             "INSERT INTO duplicate_members(group_id,file_id,package_id,role) VALUES(?,?,?,'remove')",

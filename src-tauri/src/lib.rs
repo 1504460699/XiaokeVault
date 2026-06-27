@@ -4,6 +4,7 @@ mod dedup;
 mod exporter;
 mod indexer;
 mod library;
+mod preview;
 mod scanner;
 mod selection;
 use tauri::Manager;
@@ -55,7 +56,8 @@ pub fn run() {
             dedup::run_dedup,
             dedup::get_duplicate_groups,
             dedup::remove_duplicate,
-            dedup::remove_all_duplicates
+            dedup::remove_all_duplicates,
+            preview::get_model_glb
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

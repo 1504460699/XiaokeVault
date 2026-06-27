@@ -6,6 +6,7 @@ import { useSelectionStore } from "../stores/selectionStore";
 import { viewerForKind } from "../utils/viewer";
 import SelectionBar from "./SelectionBar.vue";
 import ImageViewer from "./preview/ImageViewer.vue";
+import ModelViewer from "./preview/ModelViewer.vue";
 import TextPreview from "./preview/TextPreview.vue";
 import AudioPlayer from "./preview/AudioPlayer.vue";
 import FontPreview from "./preview/FontPreview.vue";
@@ -50,7 +51,7 @@ function fmtBytes(b: number): string {
       />
       <!-- 其他类型：顶对齐，可滚动 -->
       <div
-        v-else
+        v-else-if="viewer !== '3d'"
         class="flex-1 overflow-auto bg-slate-900 p-2"
       >
         <AudioPlayer v-if="viewer === 'audio'" :file="file" />
@@ -59,6 +60,8 @@ function fmtBytes(b: number): string {
         <SourcePlaceholder v-else-if="viewer === 'binary-source'" :file="file" />
         <div v-else class="text-5xl text-center py-8">📦</div>
       </div>
+      <!-- 3D 模型：独立视口 -->
+      <ModelViewer v-else :file="file" class="flex-1 min-h-0" />
       <div class="p-3 text-sm space-y-1 border-t border-slate-700 shrink-0">
         <div class="font-medium break-all">{{ file.name }}</div>
         <div class="text-slate-400">
