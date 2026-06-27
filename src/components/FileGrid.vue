@@ -5,6 +5,7 @@ import { useVirtualizer } from "@tanstack/vue-virtual";
 import { useLibraryStore } from "../stores/libraryStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { getFileUrl } from "../ipc/fileUrl";
+import { viewerForKind, iconForViewer, canShowThumb } from "../utils/viewer";
 import type { FileNode } from "../types/library";
 
 const store = useLibraryStore();
@@ -53,10 +54,6 @@ async function onToggleFile(e: Event, f: FileNode) {
   }
   const isSel = selectedFileIds.value.has(f.id);
   await sel.toggleFile(f.id, isSel);
-}
-
-function isImage(f: FileNode): boolean {
-  return f.kind === "image";
 }
 </script>
 
@@ -112,12 +109,14 @@ function isImage(f: FileNode): boolean {
               class="flex-1 flex items-center justify-center bg-slate-900 overflow-hidden"
             >
               <img
-                v-if="isImage(f)"
+                v-if="canShowThumb(viewerForKind(f.kind))"
                 :src="getFileUrl(f)"
                 class="max-w-full max-h-full object-contain"
                 loading="lazy"
               />
-              <div v-else class="text-3xl">📦</div>
+              <div v-else class="text-3xl">
+                {{ iconForViewer(viewerForKind(f.kind)) }}
+              </div>
             </div>
             <div class="text-xs text-slate-400 truncate px-1 py-0.5">
               {{ f.name }}
