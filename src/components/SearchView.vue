@@ -14,7 +14,7 @@ const search = useSearchStore();
 const lib = useLibraryStore();
 const tree = useTreeStore();
 const sel = useSelectionStore();
-const { results, searching } = storeToRefs(search);
+const { results, searching, hasSearched, query } = storeToRefs(search);
 
 function fmtBytes(b: number): string {
   if (b > 1e6) return (b / 1e6).toFixed(1) + " MB";
@@ -47,12 +47,26 @@ async function locate(h: SearchHit) {
       </button>
     </div>
 
-    <div v-if="searching" class="flex-1 flex items-center justify-center text-slate-500 text-sm">
-      {{ t("search.searching") }}
+    <div v-if="searching" class="flex-1 flex flex-col items-center justify-center text-slate-500 text-sm gap-3">
+      <svg class="animate-spin h-8 w-8 text-sky-400" viewBox="0 0 24 24" fill="none">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+      </svg>
+      <span>{{ t("search.searching") }}</span>
     </div>
 
-    <div v-else-if="results.length === 0" class="flex-1 flex items-center justify-center text-slate-500 text-sm">
-      {{ t("search.noMatch") }}
+    <div
+      v-else-if="hasSearched && results.length === 0"
+      class="flex-1 flex flex-col items-center justify-center text-slate-500 text-sm gap-2"
+    >
+      <div class="text-4xl opacity-50">🔍</div>
+      <span>{{ t("search.noMatch") }}</span>
+      <span class="text-xs text-slate-600">“{{ query }}”</span>
+    </div>
+
+    <div v-else-if="!hasSearched" class="flex-1 flex flex-col items-center justify-center text-slate-500 text-sm gap-2">
+      <div class="text-4xl opacity-50">🔍</div>
+      <span>{{ t("search.typeToSearch") }}</span>
     </div>
 
     <div v-else class="flex-1 overflow-auto p-2">

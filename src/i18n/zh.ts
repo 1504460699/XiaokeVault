@@ -198,6 +198,9 @@ export default {
     matchCount: "{n} 个匹配（最多 500）",
     backToResults: "回到结果",
     keepActive: "不关闭：保持搜索结果",
+    clear: "清除搜索",
+    exit: "退出搜索",
+    typeToSearch: "输入关键词以搜索文件",
   },
   errors: {
     loadFailed: "加载失败：{msg}",

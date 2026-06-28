@@ -199,6 +199,9 @@ export default {
     matchCount: "{n} matches (max 500)",
     backToResults: "Back to results",
     keepActive: "Keep search open",
+    clear: "Clear search",
+    exit: "Exit search",
+    typeToSearch: "Type to search files",
   },
   errors: {
     loadFailed: "Load failed: {msg}",

@@ -13,6 +13,7 @@ defineEmits<{ dedup: []; types: [] }>();
 const store = useLibraryStore();
 const { libraries, currentLibId, scanning, autoScanning, scanReport, error } = storeToRefs(store);
 const search = useSearchStore();
+const { searching: searchSearching, query: searchQuery } = storeToRefs(search);
 const { t, locale } = useI18n();
 
 async function onScan() {
@@ -94,14 +95,37 @@ function onLangChange(e: Event) {
         {{ t("topbar.addLibrary") }}
       </button>
     </div>
-    <!-- 搜索框：弹性占位，最小宽度 -->
-    <input
-      v-model="search.query"
-      type="text"
-      :placeholder="t('topbar.searchPlaceholder')"
-      class="bg-slate-700 text-slate-100 px-2 py-1 rounded text-sm flex-1 min-w-[120px] max-w-[280px]"
-      @keyup.enter="search.run()"
-    />
+    <!-- 搜索框：弹性占位，最小宽度；输入即触发（500ms 防抖），回车立即触发 -->
+    <div class="relative flex-1 min-w-[120px] max-w-[280px]">
+      <input
+        v-model="search.query"
+        type="text"
+        :placeholder="t('topbar.searchPlaceholder')"
+        class="w-full bg-slate-700 text-slate-100 pl-2 pr-8 py-1 rounded text-sm"
+        @input="search.runDebounced()"
+        @keyup.enter="search.run()"
+      />
+      <!-- 右侧内嵌：搜索中显示 spinner；否则非空显示清除 ✕ -->
+      <div class="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center">
+        <svg
+          v-if="searchSearching"
+          class="animate-spin h-4 w-4 text-sky-400"
+          viewBox="0 0 24 24"
+          fill="none"
+        >
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+        <button
+          v-else-if="searchQuery"
+          class="text-slate-400 hover:text-slate-200 text-xs leading-none px-0.5"
+          :title="t('search.clear')"
+          @click="search.clear()"
+        >
+          ✕
+        </button>
+      </div>
+    </div>
     <!-- 右侧状态区（mr 给右上角窗口按钮留位）-->
     <div class="flex items-center gap-2 shrink-0 text-xs text-slate-400 mr-[132px] ml-auto">
       <span v-if="autoScanning" class="text-sky-400 animate-pulse whitespace-nowrap">{{ t("topbar.autoScanning") }}</span>
