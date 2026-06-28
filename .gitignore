@@ -43,3 +43,6 @@ src-tauri/icons/ios/
 package-lock.json
 brand/*.png
 docs/superpowers/
+
+# 进度记录文件（仅本地，不入库）
+PROGRESS.md
