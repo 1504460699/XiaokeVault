@@ -119,23 +119,44 @@ onUnmounted(() => cancelAnimationFrame(rafId));
       <canvas v-show="!status" ref="canvasRef" class="max-w-full max-h-full object-contain" />
       <div v-if="status" class="text-xs text-slate-400">{{ status }}</div>
     </div>
-    <!-- 控制台 -->
-    <div v-if="!status && frameCount > 0" class="flex items-center gap-2 px-3 py-1.5 bg-slate-800 border-t border-slate-700 text-xs shrink-0">
-      <button class="px-2 py-0.5 rounded bg-slate-600 hover:bg-slate-500" @click="step(-1)" :title="t('preview.prevFrame')">◀|</button>
-      <button class="px-3 py-0.5 rounded bg-sky-600 hover:bg-sky-500" @click="togglePlay">{{ playing ? "⏸" : "▶" }}</button>
-      <button class="px-2 py-0.5 rounded bg-slate-600 hover:bg-slate-500" @click="step(1)" :title="t('preview.nextFrame')">|▶</button>
-      <span class="text-slate-400 whitespace-nowrap">{{ currentFrame + 1 }}/{{ frameCount }}</span>
-      <!-- 进度条 -->
+    <!-- 控制台：固定行高，统一按钮/下拉框高度，进度条可压缩防溢出 -->
+    <div
+      v-if="!status && frameCount > 0"
+      class="flex items-center gap-2 px-3 py-2 bg-slate-800 border-t border-slate-700 text-xs shrink-0"
+    >
+      <button
+        type="button"
+        class="h-6 w-7 shrink-0 rounded bg-slate-600 hover:bg-slate-500 leading-none"
+        @click="step(-1)"
+        :title="t('preview.prevFrame')"
+      >◀|</button>
+      <button
+        type="button"
+        class="h-6 w-8 shrink-0 rounded bg-sky-600 hover:bg-sky-500 leading-none"
+        @click="togglePlay"
+      >{{ playing ? "⏸" : "▶" }}</button>
+      <button
+        type="button"
+        class="h-6 w-7 shrink-0 rounded bg-slate-600 hover:bg-slate-500 leading-none"
+        @click="step(1)"
+        :title="t('preview.nextFrame')"
+      >|▶</button>
+      <span class="shrink-0 text-slate-400 whitespace-nowrap tabular-nums">{{ currentFrame + 1 }}/{{ frameCount }}</span>
+      <!-- 进度条：可压缩，min-w-0 防止撑爆容器 -->
       <input
         type="range"
         :min="0"
         :max="frameCount - 1"
         :value="currentFrame"
-        class="flex-1 accent-sky-500"
+        class="flex-1 min-w-0 accent-sky-500"
         @input="seek(Number(($event.target as HTMLInputElement).value))"
       />
-      <!-- 调速 -->
-      <select v-model="speed" class="bg-slate-700 text-slate-100 rounded px-1 py-0.5" :title="t('preview.speed')">
+      <!-- 调速：固定高度与按钮一致，shrink-0 防被压缩 -->
+      <select
+        v-model="speed"
+        class="h-6 w-14 shrink-0 rounded bg-slate-700 text-slate-100 leading-none text-center"
+        :title="t('preview.speed')"
+      >
         <option :value="0.25">0.25×</option>
         <option :value="0.5">0.5×</option>
         <option :value="1">1×</option>
