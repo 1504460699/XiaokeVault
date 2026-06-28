@@ -33,6 +33,11 @@ const files = computed<FileNode[]>(() =>
 // 当前位置名称：树视图取目录名，否则取包名
 const currentLocationName = computed(() => {
   if (treeStore.viewMode === "tree") {
+    // 库根（虚拟节点 id=-1）：显示库名
+    if (treeStore.currentDirId === -1) {
+      const l = store.libraries.find((x) => x.id === store.currentLibId);
+      return l?.name ?? null;
+    }
     // 在树里找到当前目录名
     const find = (nodes: typeof treeStore.tree): string | null => {
       for (const n of nodes) {

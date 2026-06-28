@@ -49,6 +49,9 @@ export const ipc = {
   async getSubtreeFiles(directoryId: number): Promise<FileNode[]> {
     return invoke<FileNode[]>("get_subtree_files", { directoryId });
   },
+  async getAllLibraryFiles(libraryId: number): Promise<FileNode[]> {
+    return invoke<FileNode[]>("get_all_library_files", { libraryId });
+  },
 
   // 项目与勾选
   async createProject(name: string, exportRoot: string): Promise<Project> {

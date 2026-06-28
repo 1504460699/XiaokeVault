@@ -99,6 +99,7 @@ pub fn run() {
             tree::get_directory_tree,
             tree::get_directory_files,
             tree::get_subtree_files,
+            tree::get_all_library_files,
             asset_types::list_asset_types,
             asset_types::upsert_asset_type,
             asset_types::delete_asset_type,

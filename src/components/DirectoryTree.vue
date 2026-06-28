@@ -16,14 +16,29 @@ const libName = computed(() => {
   return l?.name ?? "";
 });
 
+// 当前库的文件总数 + 总大小（聚合所有目录），显示在库根节点上
+const libSummary = computed(() => {
+  let count = 0;
+  let bytes = 0;
+  const walk = (nodes: typeof tree.value) => {
+    for (const n of nodes) {
+      count += n.file_count;
+      bytes += n.total_bytes;
+      if (n.children?.length) walk(n.children);
+    }
+  };
+  walk(tree.value);
+  return { count, bytes };
+});
+
 // 把当前库的目录树包进一个虚拟根节点（库名），点击它显示全库文件
 const root = computed(() => ({
   id: -1, // 虚拟根，用负 id 避免与真实目录冲突
   name: libName.value,
   path: "",
-  depth: -1, // 最顶层，DirTreeNode 默认展开 depth===0，这里用 -1 也展开
-  file_count: 0,
-  total_bytes: 0,
+  depth: -1, // 最顶层
+  file_count: libSummary.value.count,
+  total_bytes: libSummary.value.bytes,
   children: tree.value,
 }));
 </script>
@@ -34,7 +49,7 @@ const root = computed(() => ({
       无目录。请先扫描库。
     </div>
     <div v-else class="py-2">
-      <DirTreeNode :node="root" />
+      <DirTreeNode :node="root" :is-root="true" />
     </div>
   </aside>
 </template>

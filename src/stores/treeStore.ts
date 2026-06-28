@@ -27,6 +27,16 @@ export const useTreeStore = defineStore("tree", () => {
     }
   }
 
+  // 选中库根（虚拟节点 id=-1）：显示整库所有文件
+  async function selectLibraryRoot(libId: number) {
+    currentDirId.value = -1;
+    try {
+      files.value = await ipc.getAllLibraryFiles(libId);
+    } catch (e) {
+      handleError(e, "加载文件列表失败");
+    }
+  }
+
   async function selectDirectory(dirId: number) {
     currentDirId.value = dirId;
     try {
@@ -49,6 +59,7 @@ export const useTreeStore = defineStore("tree", () => {
     viewMode,
     setViewMode,
     loadTree,
+    selectLibraryRoot,
     selectDirectory,
     clearFiles,
   };

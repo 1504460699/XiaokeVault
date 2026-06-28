@@ -146,3 +146,34 @@ pub async fn get_subtree_files(
         })
         .collect())
 }
+
+/// 取整库所有文件（点击库根节点时用）。覆盖树视图所有目录。
+#[tauri::command]
+pub async fn get_all_library_files(
+    library_id: i64,
+    pool: State<'_, SqlitePool>,
+) -> Result<Vec<FileNode>, AppError> {
+    let rows: Vec<(i64, String, String, String, String, i64, String, String)> = sqlx::query_as(
+        "SELECT f.id, f.rel_path, f.name, f.ext, f.kind, f.bytes, d.path, l.root_path
+         FROM files f
+         JOIN directories d ON d.id=f.directory_id
+         JOIN libraries l ON l.id=d.library_id
+         WHERE d.library_id=? AND f.deleted=0
+         ORDER BY f.rel_path",
+    )
+    .bind(library_id)
+    .fetch_all(&*pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|(id, rel, name, ext, kind, bytes, dir_path, root)| FileNode {
+            id,
+            rel_path: rel.clone(),
+            name,
+            ext,
+            kind,
+            bytes,
+            abs_path: format!("{}/{}/{}", root.replace('\\', "/"), dir_path, rel),
+        })
+        .collect())
+}
