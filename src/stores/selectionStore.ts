@@ -6,14 +6,14 @@ import type { Project, SelectionSummary } from "../types/library";
 export const useSelectionStore = defineStore("selection", () => {
   const currentProjectId = ref<number | null>(null);
   const projects = ref<Project[]>([]);
-  // packageId -> state（当前分类下）
-  const pkgStates = ref<Record<number, string>>({});
-  // 当前包内已选文件 ID（文件级勾选）
+  // directoryId -> state：当前目录的整体勾选状态（'all'/'partial'/'none'）
+  const dirStates = ref<Record<number, string>>({});
+  // 当前目录子树内已勾选的文件 ID（文件级勾选）
   const selectedFileIds = ref<Set<number>>(new Set());
   // 选中预览的文件
   const previewFileId = ref<number | null>(null);
   const summary = ref<SelectionSummary>({
-    package_count: 0,
+    directory_count: 0,
     file_count: 0,
     total_bytes: 0,
   });
@@ -50,11 +50,12 @@ export const useSelectionStore = defineStore("selection", () => {
     previewFileId.value = id;
   }
 
-  /// 切换整包勾选
-  async function togglePackage(pkgId: number, currentlyAll: boolean) {
+  /// 切换整目录勾选（含子树）
+  async function toggleDirectory(dirId: number, currentlyAll: boolean) {
     if (currentProjectId.value === null) return;
     const action = currentlyAll ? "remove" : "add";
-    await ipc.setSelection(currentProjectId.value, "package", pkgId, null, action);
+    await ipc.setSelection(currentProjectId.value, "directory", dirId, null, action);
+    dirStates.value[dirId] = currentlyAll ? "none" : "all";
     await refreshSummary();
   }
 
@@ -69,28 +70,23 @@ export const useSelectionStore = defineStore("selection", () => {
     await refreshSummary();
   }
 
-  /// 刷新某分类下包状态
-  async function refreshPkgStates(categoryId: number) {
+  /// 查询某目录的整体勾选状态并缓存
+  async function refreshDirState(dirId: number) {
     if (currentProjectId.value === null) {
-      pkgStates.value = {};
+      dirStates.value = {};
       return;
     }
-    const states = await ipc.getCategorySelectionStates(
-      currentProjectId.value,
-      categoryId,
-    );
-    const m: Record<number, string> = {};
-    for (const s of states) m[s.package_id] = s.state;
-    pkgStates.value = m;
+    const state = await ipc.getDirectorySelectionState(currentProjectId.value, dirId);
+    dirStates.value[dirId] = state;
   }
 
-  /// 进入包时从 DB 回填已勾选的文件 ID（持久化读取）
-  async function loadFileSelections(pkgId: number) {
+  /// 进目录时从 DB 回填已勾选的文件 ID（持久化读取）
+  async function loadFileSelections(dirId: number) {
     if (currentProjectId.value === null) {
       selectedFileIds.value = new Set();
       return;
     }
-    const ids = await ipc.getSelectedFileIds(currentProjectId.value, pkgId);
+    const ids = await ipc.getSelectedFileIds(currentProjectId.value, dirId);
     selectedFileIds.value = new Set(ids);
   }
 
@@ -98,7 +94,7 @@ export const useSelectionStore = defineStore("selection", () => {
   async function clearAll() {
     if (currentProjectId.value === null) return;
     await ipc.clearSelections(currentProjectId.value);
-    pkgStates.value = {};
+    dirStates.value = {};
     selectedFileIds.value = new Set();
     await refreshSummary();
   }
@@ -111,7 +107,7 @@ export const useSelectionStore = defineStore("selection", () => {
   return {
     currentProjectId,
     projects,
-    pkgStates,
+    dirStates,
     selectedFileIds,
     previewFileId,
     summary,
@@ -120,11 +116,11 @@ export const useSelectionStore = defineStore("selection", () => {
     ensureProject,
     selectProject,
     setPreview,
-    togglePackage,
+    toggleDirectory,
     toggleFile,
-    clearAll,
-    refreshPkgStates,
+    refreshDirState,
     loadFileSelections,
+    clearAll,
     refreshSummary,
   };
 });

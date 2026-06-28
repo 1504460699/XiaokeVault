@@ -21,47 +21,36 @@ const store = useLibraryStore();
 const treeStore = useTreeStore();
 const sel = useSelectionStore();
 const search = useSearchStore();
-const { files: libFiles, currentPackage } = storeToRefs(store);
 const { files: treeFiles } = storeToRefs(treeStore);
-const { pkgStates, selectedFileIds } = storeToRefs(sel);
+const { selectedFileIds } = storeToRefs(sel);
 
-// 文件数据源：树视图用 treeStore.files，否则用 libraryStore.files
-const files = computed<FileNode[]>(() =>
-  treeStore.viewMode === "tree" ? treeFiles.value : libFiles.value,
-);
+// 文件数据源：统一用 treeStore.files
+const files = computed<FileNode[]>(() => treeFiles.value);
 
-// 当前位置名称：树视图取目录名，否则取包名
+// 当前位置名称：树视图取目录名（库根=库名，否则在树里找）
 const currentLocationName = computed(() => {
-  if (treeStore.viewMode === "tree") {
-    // 库根（虚拟节点 id=-1）：显示库名
-    if (treeStore.currentDirId === -1) {
-      const l = store.libraries.find((x) => x.id === store.currentLibId);
-      return l?.name ?? null;
-    }
-    // 在树里找到当前目录名
-    const find = (nodes: typeof treeStore.tree): string | null => {
-      for (const n of nodes) {
-        if (n.id === treeStore.currentDirId) return n.name;
-        const c = find(n.children);
-        if (c) return c;
-      }
-      return null;
-    };
-    return find(treeStore.tree);
+  if (treeStore.currentDirId === -1) {
+    const l = store.libraries.find((x) => x.id === store.currentLibId);
+    return l?.name ?? null;
   }
-  return currentPackage.value?.name ?? null;
+  const find = (nodes: typeof treeStore.tree): string | null => {
+    for (const n of nodes) {
+      if (n.id === treeStore.currentDirId) return n.name;
+      const c = find(n.children);
+      if (c) return c;
+    }
+    return null;
+  };
+  return find(treeStore.tree);
 });
 
-// 返回：搜索模式下回搜索结果（清空当前选中），否则回目录树/包列表
+// 返回：搜索模式下回搜索结果（清空当前选中），否则回目录树
 function onBack() {
   if (search.active) {
-    // 搜索定位后返回：清空包/目录选中，恢复搜索结果视图
-    store.backToPackages();
-    treeStore.clearFiles();
-  } else if (treeStore.viewMode === "tree") {
+    // 搜索定位后返回：清空目录选中，恢复搜索结果视图
     treeStore.clearFiles();
   } else {
-    store.backToPackages();
+    treeStore.clearFiles();
   }
 }
 
@@ -84,19 +73,13 @@ const filteredFiles = computed<FileNode[]>(() => {
   });
 });
 
-// 当前可用的类型（供下拉，从当前包文件动态生成）
+// 当前可用的类型（供下拉，从当前目录文件动态生成）
 const availableKinds = computed(() => {
   const set = new Map<string, number>();
   for (const f of files.value) {
     set.set(f.kind, (set.get(f.kind) ?? 0) + 1);
   }
   return Array.from(set.entries()).map(([kind, count]) => ({ kind, count }));
-});
-
-// 当前包是否整包勾选
-const pkgAllSelected = computed(() => {
-  if (store.currentPkgId === null) return false;
-  return pkgStates.value[store.currentPkgId] === "all";
 });
 
 // 把文件切成行（每行 COLS 个）——基于过滤后的文件
@@ -141,12 +124,16 @@ watch(
 async function onToggleFile(e: Event, f: FileNode) {
   e.stopPropagation();
   await sel.ensureProject();
-  if (pkgAllSelected.value) {
-    alert(t("fileGrid.pkgAllSelectedAlert"));
-    return;
-  }
   const isSel = selectedFileIds.value.has(f.id);
   await sel.toggleFile(f.id, isSel);
+}
+
+// 切换整目录勾选
+async function onToggleDirectory() {
+  if (treeStore.currentDirId === null || treeStore.currentDirId < 0) return;
+  await sel.ensureProject();
+  const isAll = sel.dirStates[treeStore.currentDirId] === "all";
+  await sel.toggleDirectory(treeStore.currentDirId, isAll);
 }
 </script>
 
@@ -156,12 +143,23 @@ async function onToggleFile(e: Event, f: FileNode) {
       class="px-4 py-2 text-sm text-slate-400 border-b border-slate-700 shrink-0 flex items-center gap-2 flex-wrap"
     >
       <button class="text-sky-400 hover:underline" @click="onBack()">
-        ← {{ search.active ? t('fileGrid.backToResults') : (treeStore.viewMode === 'tree' ? t('fileGrid.backToTree') : t('fileGrid.backToPackages')) }}
+        ← {{ search.active ? t('fileGrid.backToResults') : t('fileGrid.backToTree') }}
       </button>
       <span>/ {{ currentLocationName }}</span>
       <span class="text-slate-500">
         {{ t('fileGrid.fileCount', { shown: filteredFiles.length, total: files.length }) }}
       </span>
+      <!-- 整目录勾选（仅真实目录，库根虚拟节点不显示） -->
+      <button
+        v-if="treeStore.currentDirId !== null && treeStore.currentDirId >= 0"
+        class="px-2 py-0.5 rounded text-xs"
+        :class="sel.dirStates[treeStore.currentDirId] === 'all'
+          ? 'bg-sky-600 text-white'
+          : 'bg-slate-700 text-slate-200 hover:bg-slate-600'"
+        @click="onToggleDirectory()"
+      >
+        {{ sel.dirStates[treeStore.currentDirId] === 'all' ? '✓ ' : '' }}{{ t('fileGrid.selectAllDir') }}
+      </button>
       <div class="ml-auto flex items-center gap-2">
         <select
           v-model="filterKind"
@@ -214,7 +212,7 @@ async function onToggleFile(e: Event, f: FileNode) {
             <input
               type="checkbox"
               class="absolute top-1 left-1 z-10 accent-sky-500"
-              :checked="pkgAllSelected || selectedFileIds.has(f.id)"
+              :checked="selectedFileIds.has(f.id)"
               @click="onToggleFile($event, f)"
             />
             <div

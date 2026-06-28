@@ -5,25 +5,6 @@ export interface Library {
   root_path: string;
 }
 
-export interface Category {
-  id: number;
-  name: string;
-  sort_order: number;
-  package_count: number;
-  file_count: number;
-  total_bytes: number;
-}
-
-export interface PackageSummary {
-  id: number;
-  name: string;
-  path: string;
-  file_count: number;
-  total_bytes: number;
-  has_zip: boolean;
-  license: string | null;
-}
-
 export interface FileNode {
   id: number;
   rel_path: string;
@@ -60,15 +41,8 @@ export interface Project {
   export_root: string;
 }
 
-export interface PackageSelectionState {
-  package_id: number;
-  state: "all" | "partial" | "excluded" | "none";
-  file_count: number;
-  selected_files: number;
-}
-
 export interface SelectionSummary {
-  package_count: number;
+  directory_count: number;
   file_count: number;
   total_bytes: number;
 }
@@ -80,10 +54,9 @@ export interface SearchHit {
   kind: string;
   bytes: number;
   abs_path: string;
-  package_name: string;
-  category_name: string;
-  package_id: number;
   directory_id: number | null;
+  /** 文件所在目录的相对路径（库根下的路径，用于结果展示） */
+  directory_path: string;
 }
 
 // 目录树节点（递归，对应 src-tauri/src/tree.rs 的 DirNode）

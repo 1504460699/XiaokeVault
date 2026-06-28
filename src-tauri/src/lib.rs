@@ -1,12 +1,10 @@
 mod asset_types;
 mod db;
-mod dedup;
 mod error;
 mod exporter;
 mod indexer;
 mod library;
 mod preview;
-mod scanner;
 mod selection;
 mod watcher;
 mod tree_scanner;
@@ -99,23 +97,15 @@ pub fn run() {
             library::list_libraries,
             library::scan_library_full,
             library::needs_rescan,
-            library::get_categories,
-            library::get_packages,
-            library::get_package_files,
             library::search_files,
             selection::create_project,
             selection::list_projects,
             selection::set_selection,
             selection::clear_selections,
             selection::get_selected_file_ids,
-            selection::get_category_selection_states,
+            selection::get_directory_selection_state,
             selection::get_selection_summary,
             exporter::run_export,
-            dedup::run_dedup,
-            dedup::get_duplicate_groups,
-            dedup::remove_duplicate,
-            dedup::remove_all_duplicates,
-            dedup::dismiss_duplicate_group,
             preview::get_model_glb,
             preview::get_thumbnail,
             tree::get_directory_tree,

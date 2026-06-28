@@ -1,12 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   Library,
-  Category,
-  PackageSummary,
   FileNode,
   ScanReport,
   Project,
-  PackageSelectionState,
   SelectionSummary,
   SearchHit,
   DirNode,
@@ -25,15 +22,6 @@ export const ipc = {
   },
   async needsRescan(libId: number): Promise<boolean> {
     return invoke<boolean>("needs_rescan", { libId });
-  },
-  async getCategories(libId: number): Promise<Category[]> {
-    return invoke<Category[]>("get_categories", { libId });
-  },
-  async getPackages(categoryId: number): Promise<PackageSummary[]> {
-    return invoke<PackageSummary[]>("get_packages", { categoryId });
-  },
-  async getPackageFiles(pkgId: number): Promise<FileNode[]> {
-    return invoke<FileNode[]>("get_package_files", { pkgId });
   },
   async searchFiles(
     query: string,
@@ -65,26 +53,26 @@ export const ipc = {
   },
   async setSelection(
     projectId: number,
-    scope: "package" | "file" | "exclude",
-    packageId: number | null,
+    scope: "directory" | "file" | "exclude",
+    directoryId: number | null,
     fileId: number | null,
     action: "add" | "remove",
   ): Promise<void> {
     return invoke<void>("set_selection", {
       projectId,
       scope,
-      packageId,
+      directoryId,
       fileId,
       action,
     });
   },
-  async getCategorySelectionStates(
+  async getDirectorySelectionState(
     projectId: number,
-    categoryId: number,
-  ): Promise<PackageSelectionState[]> {
-    return invoke<PackageSelectionState[]>("get_category_selection_states", {
+    directoryId: number,
+  ): Promise<"all" | "partial" | "none"> {
+    return invoke<"all" | "partial" | "none">("get_directory_selection_state", {
       projectId,
-      categoryId,
+      directoryId,
     });
   },
   async getSelectionSummary(projectId: number): Promise<SelectionSummary> {
@@ -93,7 +81,7 @@ export const ipc = {
   async clearSelections(projectId: number): Promise<void> {
     return invoke<void>("clear_selections", { projectId });
   },
-  async getSelectedFileIds(projectId: number, pkgId: number): Promise<number[]> {
-    return invoke<number[]>("get_selected_file_ids", { projectId, pkgId });
+  async getSelectedFileIds(projectId: number, dirId: number): Promise<number[]> {
+    return invoke<number[]>("get_selected_file_ids", { projectId, dirId });
   },
 };

@@ -2,7 +2,6 @@
 import { storeToRefs } from "pinia";
 import { useI18n } from "vue-i18n";
 import { useSearchStore } from "../stores/searchStore";
-import { useLibraryStore } from "../stores/libraryStore";
 import { useTreeStore } from "../stores/treeStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { viewerForKind, iconForViewer, canShowThumb } from "../utils/viewer";
@@ -11,7 +10,6 @@ import type { SearchHit } from "../types/library";
 
 const { t } = useI18n();
 const search = useSearchStore();
-const lib = useLibraryStore();
 const tree = useTreeStore();
 const sel = useSelectionStore();
 const { results, searching, hasSearched, query } = storeToRefs(search);
@@ -22,18 +20,15 @@ function fmtBytes(b: number): string {
   return b + " B";
 }
 
-// 点击结果：定位到该文件所在目录/包并预览（保持搜索状态，便于返回继续浏览结果）
+// 点击结果：定位到该文件所在目录并预览（保持搜索状态，便于返回继续浏览结果）
 async function locate(h: SearchHit) {
-  if (tree.viewMode === "tree" && h.directory_id !== null) {
-    // 树视图：定位到目录
+  if (h.directory_id !== null) {
+    // 定位到文件所在目录
     await tree.selectDirectory(h.directory_id);
-  } else if (h.package_id > 0) {
-    // 两级视图：定位到包
-    await lib.selectPackage(h.package_id);
   }
   sel.setPreview(h.id);
   search.requestLocate(h.id);
-  // 不 close：保持搜索 active，FileGrid 渲染后用户可点“返回搜索”回到结果
+  // 不 close：保持搜索 active，FileGrid 渲染后用户可点“返回”回到结果
 }
 </script>
 
@@ -87,7 +82,7 @@ async function locate(h: SearchHit) {
             <div v-else class="text-3xl">{{ iconForViewer(viewerForKind(h.kind)) }}</div>
           </div>
           <div class="text-xs text-slate-200 truncate" :title="h.name">{{ h.name }}</div>
-          <div class="text-xs text-slate-500 truncate" :title="`${h.category_name} / ${h.package_name}`">{{ h.category_name }} / {{ h.package_name }}</div>
+          <div class="text-xs text-slate-500 truncate" :title="h.directory_path">{{ h.directory_path }}</div>
           <div class="flex items-center justify-between mt-1">
             <span class="text-xs text-slate-500">{{ fmtBytes(h.bytes) }} · {{ h.kind }}</span>
           </div>

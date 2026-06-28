@@ -94,7 +94,7 @@ pub fn start_watcher(
             let pool3 = pool2.clone();
             let root3 = root2.clone();
             tauri::async_runtime::spawn(async move {
-                match crate::indexer::scan_into(&pool3, lib_id, &root3).await {
+                match crate::indexer::scan_tree_into(&pool3, lib_id, &root3).await {
                     Ok(report) => {
                         log::info!(
                             "[watcher] 增量扫描完成：新增 {} / 更新 {} / 删除 {} / 耗时 {}ms",
@@ -103,12 +103,6 @@ pub fn start_watcher(
                             report.deleted,
                             report.duration_ms
                         );
-                        // 同步刷新目录树（如实反映目录增删改）
-                        if let Err(e) =
-                            crate::indexer::scan_tree_into(&pool3, lib_id, &root3).await
-                        {
-                            log::warn!("[watcher] 目录树同步失败：{e}");
-                        }
                         let _ = app3.emit("library://auto-scanned", &report);
                     }
                     Err(e) => {

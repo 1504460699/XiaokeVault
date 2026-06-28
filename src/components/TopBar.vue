@@ -8,7 +8,7 @@ import { setLocale } from "../i18n";
 import { handleError } from "../utils/toast";
 import WindowControls from "./WindowControls.vue";
 
-defineEmits<{ dedup: []; types: [] }>();
+defineEmits<{ types: [] }>();
 
 const store = useLibraryStore();
 const { libraries, currentLibId, scanning, autoScanning, scanReport, error } = storeToRefs(store);
@@ -31,7 +31,6 @@ async function onAddLibrary() {
   if (!name) return;
   try {
     await store.addLibrary(name, rootPath);
-    await store.loadCategories();
   } catch (e: unknown) {
     handleError(e, t("errors.addLibraryFailed"));
   }
@@ -74,13 +73,6 @@ function onLangChange(e: Event) {
         @click="onScan"
       >
         {{ scanning ? t("topbar.scanning") : t("topbar.scan") }}
-      </button>
-      <button
-        class="px-2.5 py-1 rounded bg-amber-700 hover:bg-amber-600 disabled:opacity-50 text-sm whitespace-nowrap"
-        :disabled="currentLibId === null"
-        @click="$emit('dedup')"
-      >
-        {{ t("topbar.dedup") }}
       </button>
       <button
         class="px-2.5 py-1 rounded bg-slate-700 hover:bg-slate-600 text-sm whitespace-nowrap"

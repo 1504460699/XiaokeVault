@@ -1,7 +1,6 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import { ipc } from "../ipc/library";
-import { useLibraryStore } from "./libraryStore";
 import { useTreeStore } from "./treeStore";
 import type { SearchHit } from "../types/library";
 
@@ -18,11 +17,9 @@ export const useSearchStore = defineStore("search", () => {
   // 防抖句柄：实时搜索时合并连续输入
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-  // 把当前位置（包/目录）让出去，确保 SearchView 的 v-if 三条件同时成立
+  // 把当前位置（目录）让出去，确保 SearchView 的 v-if 条件成立
   function releaseCurrentLocation() {
-    const lib = useLibraryStore();
     const tree = useTreeStore();
-    if (lib.currentPkgId !== null) lib.backToPackages();
     if (tree.currentDirId !== null) tree.clearFiles();
   }
 

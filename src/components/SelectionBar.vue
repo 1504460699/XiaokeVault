@@ -30,7 +30,7 @@ function fmtBytes(b: number): string {
       <span v-else>{{ t("export.noProject") }}</span>
     </div>
     <div class="text-slate-400 text-xs">
-      {{ t("selection.summary", { p: summary.package_count, f: summary.file_count, b: fmtBytes(summary.total_bytes) }) }}
+      {{ t("selection.summary", { d: summary.directory_count, f: summary.file_count, b: fmtBytes(summary.total_bytes) }) }}
     </div>
     <button
       class="w-full mt-1 px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-xs"

@@ -98,6 +98,9 @@ pub async fn migrate(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     // 0005：修复 files 表唯一约束（package_id,rel_path)→(directory_id,rel_path)
     // 解决树扫描同名文件互相覆盖导致目录显示空的问题
     fix_files_unique_constraint(pool).await?;
+    // 0006：移除两级视图，统一目录树架构
+    // drop categories/packages/dedup 表，directories 加版权列，selections/files 重建，清理旧两级数据
+    drop_two_level_schema(pool).await?;
     Ok(())
 }
 
@@ -229,5 +232,163 @@ async fn ensure_column(
         .execute(pool)
         .await?;
     }
+    Ok(())
+}
+
+/// 0006 迁移：移除两级视图（categories/packages），统一为目录树架构。
+///
+/// 改动：
+/// - directories 表加版权列（source_url/source_title/license/license_source）
+/// - files 表重建：去掉 package_id 列与外键，directory_id 改 NOT NULL，UNIQUE(directory_id, rel_path)
+/// - 清理旧两级数据：DELETE FROM files WHERE directory_id IS NULL
+/// - selections 表重建：package_id → directory_id，scope 'package' → 'directory'
+/// - DROP: categories / packages / duplicate_groups / duplicate_members / dismissed_pairs
+///
+/// 幂等：schema_migrations version=6。安全：迁移前 index.db → index.db.bak。
+async fn drop_two_level_schema(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    // 幂等检查
+    let applied: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM schema_migrations WHERE version=6",
+    )
+    .fetch_one(pool)
+    .await?;
+    if applied > 0 {
+        log::debug!("[db] 0006 迁移：已应用，跳过");
+        return Ok(());
+    }
+
+    log::info!("[db] 0006 迁移：移除两级视图，统一目录树架构");
+    let path = db_path();
+    let backup = path.with_extension("db.bak2");
+    if let Err(e) = std::fs::copy(&path, &backup) {
+        log::warn!("[db] 0006 备份失败（继续迁移）：{e}");
+    } else {
+        log::info!("[db] 0006 已备份数据库 → {}", backup.display());
+    }
+
+    let mut conn = pool.acquire().await?;
+    // 整个迁移在一个事务里，失败则回滚（备份文件兜底）
+    let mut tx = conn.begin().await?;
+
+    // 1) directories 加版权列（幂等 ADD COLUMN，SQLite 无 IF NOT EXISTS，用 pragma 检查）
+    for (col, def) in [
+        ("source_url", "TEXT"),
+        ("source_title", "TEXT"),
+        ("license", "TEXT"),
+        ("license_source", "TEXT"),
+    ] {
+        let exists: (i64,) = sqlx::query_as(&format!(
+            "SELECT COUNT(*) FROM pragma_table_info('directories') WHERE name='{}'",
+            col
+        ))
+        .fetch_one(&mut *tx)
+        .await?;
+        if exists.0 == 0 {
+            sqlx::query(&format!("ALTER TABLE directories ADD COLUMN {} {}", col, def))
+                .execute(&mut *tx)
+                .await?;
+        }
+    }
+
+    // 2) 清理旧两级数据：无 directory_id 的文件（旧 package_id>0 两级文件）
+    let purged: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM files WHERE directory_id IS NULL")
+            .fetch_one(&mut *tx)
+            .await?;
+    log::info!("[db] 0006 清理旧两级文件（directory_id IS NULL）共 {} 条", purged);
+    sqlx::query("DELETE FROM files WHERE directory_id IS NULL")
+        .execute(&mut *tx)
+        .await?;
+
+    // 3) 重建 files 表：去掉 package_id 列与外键，directory_id NOT NULL
+    sqlx::query(
+        "CREATE TABLE files_new (
+            id           INTEGER PRIMARY KEY,
+            rel_path     TEXT NOT NULL,
+            name         TEXT NOT NULL,
+            ext          TEXT NOT NULL,
+            kind         TEXT NOT NULL,
+            bytes        INTEGER NOT NULL,
+            width        INTEGER,
+            height       INTEGER,
+            frame_count  INTEGER,
+            modified_at  INTEGER NOT NULL,
+            content_hash TEXT,
+            deleted      INTEGER DEFAULT 0,
+            directory_id INTEGER NOT NULL REFERENCES directories(id) ON DELETE CASCADE,
+            UNIQUE(directory_id, rel_path)
+        )",
+    )
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        "INSERT INTO files_new
+            (id, rel_path, name, ext, kind, bytes, width, height,
+             frame_count, modified_at, content_hash, deleted, directory_id)
+         SELECT id, rel_path, name, ext, kind, bytes, width, height,
+                frame_count, modified_at, content_hash, deleted, directory_id
+         FROM files",
+    )
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query("DROP TABLE files").execute(&mut *tx).await?;
+    sqlx::query("ALTER TABLE files_new RENAME TO files").execute(&mut *tx).await?;
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_files_directory_id ON files(directory_id)")
+        .execute(&mut *tx)
+        .await?;
+
+    // 4) 重建 selections 表：package_id → directory_id，scope 'package' → 'directory'
+    sqlx::query(
+        "CREATE TABLE selections_new (
+            id           INTEGER PRIMARY KEY,
+            scope        TEXT NOT NULL CHECK(scope IN ('directory','file','exclude')),
+            directory_id INTEGER REFERENCES directories(id) ON DELETE CASCADE,
+            file_id      INTEGER REFERENCES files(id) ON DELETE CASCADE,
+            project_id   INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            created_at   INTEGER NOT NULL,
+            CHECK((scope='directory' AND directory_id IS NOT NULL) OR
+                  (scope IN ('file','exclude') AND file_id IS NOT NULL))
+        )",
+    )
+    .execute(&mut *tx)
+    .await?;
+    // 旧 selections 数据全是两级视图产物，直接丢弃（scope='package' 在新表无对应）
+    // 不迁移，新表从空开始
+    sqlx::query("DROP TABLE selections").execute(&mut *tx).await?;
+    sqlx::query("ALTER TABLE selections_new RENAME TO selections").execute(&mut *tx).await?;
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_selections_project ON selections(project_id)")
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_selections_directory ON selections(directory_id)")
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_selections_file ON selections(file_id)")
+        .execute(&mut *tx)
+        .await?;
+
+    // 5) DROP 两级视图表 + 去重表
+    for table in [
+        "duplicate_members",
+        "duplicate_groups",
+        "dismissed_pairs",
+        "packages",
+        "categories",
+    ] {
+        // 临时关闭外键检查，避免残留外键依赖阻止 drop
+        sqlx::query("PRAGMA foreign_keys=OFF")
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query(&format!("DROP TABLE IF EXISTS {}", table))
+            .execute(&mut *tx)
+            .await?;
+    }
+    sqlx::query("PRAGMA foreign_keys=ON").execute(&mut *tx).await?;
+
+    tx.commit().await?;
+    // 记录迁移已应用（幂等标记）
+    sqlx::query("INSERT OR IGNORE INTO schema_migrations(version) VALUES (6)")
+        .execute(pool)
+        .await?;
+    log::info!("[db] 0006 迁移完成：两级视图已移除，目录树架构生效");
     Ok(())
 }

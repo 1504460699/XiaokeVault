@@ -9,16 +9,6 @@ export const useTreeStore = defineStore("tree", () => {
   const currentDirId = ref<number | null>(null);
   const files = ref<FileNode[]>([]);
 
-  // 左侧视图模式：'category' | 'tree'，记忆到 localStorage
-  const viewMode = ref<"category" | "tree">(
-    (localStorage.getItem("vault.leftView") as "category" | "tree") || "category",
-  );
-
-  function setViewMode(mode: "category" | "tree") {
-    viewMode.value = mode;
-    localStorage.setItem("vault.leftView", mode);
-  }
-
   async function loadTree(libId: number) {
     try {
       tree.value = await ipc.getDirectoryTree(libId);
@@ -56,8 +46,6 @@ export const useTreeStore = defineStore("tree", () => {
     tree,
     currentDirId,
     files,
-    viewMode,
-    setViewMode,
     loadTree,
     selectLibraryRoot,
     selectDirectory,

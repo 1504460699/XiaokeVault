@@ -26,46 +26,63 @@ pub struct ExportResult {
 struct ExportItem {
     src: PathBuf,
     dest_rel: String,
-    category: String,
-    package: String,
+    directory: String,
     name: String,
     ext: String,
     kind: String,
     bytes: i64,
+    /// 来源目录的 id（用于 credits 去重查询）
+    directory_id: i64,
 }
 
+/// 解析项目勾选的实际文件清单。
+/// 文件命中 = 整体勾选目录（含子树）的文件 ∪ 单文件勾选，再排除 exclude。
 async fn resolve_export_items(pool: &SqlitePool, project_id: i64) -> Result<Vec<ExportItem>, AppError> {
-    let rows: Vec<(String, String, String, String, String, String, i64, String)> =
-        sqlx::query_as(
-            "SELECT p.path, c.name, p.name, f.rel_path, f.name, f.ext, f.bytes, f.kind
-             FROM files f
-             JOIN packages p ON p.id=f.package_id
-             JOIN categories c ON c.id=p.category_id
-             WHERE f.deleted=0 AND (
-               f.package_id IN (SELECT package_id FROM selections WHERE project_id=? AND scope='package')
-               OR f.id IN (SELECT file_id FROM selections WHERE project_id=? AND scope='file')
-             ) AND f.id NOT IN (SELECT file_id FROM selections WHERE project_id=? AND scope='exclude')",
-        )
-        .bind(project_id)
-        .bind(project_id)
-        .bind(project_id)
-        .fetch_all(pool)
-        .await
-        ?;
+    // 字段：库根, 目录相对路径, 目录id, rel_path, name, ext, bytes, kind
+    let rows: Vec<(String, String, i64, String, String, String, i64, String)> = sqlx::query_as(
+        "SELECT l.root_path, d.path, d.id, f.rel_path, f.name, f.ext, f.bytes, f.kind
+         FROM files f
+         JOIN directories d ON d.id=f.directory_id
+         JOIN libraries l ON l.id=d.library_id
+         WHERE f.deleted=0 AND (
+           f.directory_id IN (
+             SELECT sub.id FROM selections sel
+             JOIN (
+               WITH RECURSIVE subtree(id) AS (
+                 SELECT id FROM directories WHERE id IN (
+                   SELECT directory_id FROM selections WHERE project_id=? AND scope='directory' AND directory_id IS NOT NULL
+                 )
+                 UNION ALL
+                 SELECT dd.id FROM directories dd JOIN subtree s ON dd.parent_id=s.id
+               )
+               SELECT id FROM subtree
+             ) AS sub
+           )
+           OR f.id IN (SELECT file_id FROM selections WHERE project_id=? AND scope='file')
+         ) AND f.id NOT IN (SELECT file_id FROM selections WHERE project_id=? AND scope='exclude')",
+    )
+    .bind(project_id)
+    .bind(project_id)
+    .bind(project_id)
+    .fetch_all(pool)
+    .await?;
 
     let mut items = Vec::new();
-    for (pkg_path, category, package, rel, name, ext, bytes, kind) in rows {
-        let src = PathBuf::from(&pkg_path).join(&rel);
-        let dest_rel = format!("assets/{}/{}/{}", category, package, rel.replace('\\', "/"));
+    for (root_path, dir_path, dir_id, rel, name, ext, bytes, kind) in rows {
+        // 绝对源路径：库根 + 目录相对路径 + rel（统一正斜杠后转 PathBuf）
+        let root_norm = root_path.replace('\\', "/");
+        let src = PathBuf::from(&root_norm).join(&dir_path).join(&rel);
+        // 导出目标相对路径：镜像库内的目录树结构 assets/{dir_path}/{rel}
+        let dest_rel = format!("assets/{}/{}", dir_path, rel.replace('\\', "/"));
         items.push(ExportItem {
             src,
             dest_rel,
-            category,
-            package,
+            directory: dir_path,
             name,
             ext,
             kind,
             bytes,
+            directory_id: dir_id,
         });
     }
     Ok(items)
@@ -82,16 +99,14 @@ pub async fn run_export(
     let (proj_name,): (String,) = sqlx::query_as("SELECT name FROM projects WHERE id=?")
         .bind(project_id)
         .fetch_one(&*pool)
-        .await
-        ?;
+        .await?;
 
     // 更新项目的 export_root（用户在对话框选择的导出位置）
     sqlx::query("UPDATE projects SET export_root=? WHERE id=?")
         .bind(&export_root)
         .bind(project_id)
         .execute(&*pool)
-        .await
-        ?;
+        .await?;
 
     let items = resolve_export_items(&pool, project_id).await?;
     let total = items.len() as u64;
@@ -169,26 +184,27 @@ fn sanitize(s: &str) -> String {
         .collect()
 }
 
+/// 构建 CREDITS：按来源目录去重，从 directories 表查版权元数据。
 async fn build_credits(
     pool: &SqlitePool,
     items: &[ExportItem],
 ) -> Result<(String, serde_json::Value), AppError> {
-    let mut pkg_set: BTreeSet<String> = BTreeSet::new();
+    // 按目录 id 去重（同一目录下的多文件只列一次版权）
+    let mut dir_set: BTreeSet<i64> = BTreeSet::new();
     for it in items {
-        pkg_set.insert(it.package.clone());
+        dir_set.insert(it.directory_id);
     }
     let mut lines: Vec<String> = vec!["# CREDITS".to_string()];
     let mut json_arr: Vec<serde_json::Value> = Vec::new();
-    for pkg_name in &pkg_set {
+    for dir_id in &dir_set {
         let row: Option<(Option<String>, Option<String>, Option<String>)> = sqlx::query_as(
-            "SELECT source_url, source_title, license FROM packages WHERE name=? LIMIT 1",
+            "SELECT source_url, source_title, license FROM directories WHERE id=? LIMIT 1",
         )
-        .bind(pkg_name)
+        .bind(dir_id)
         .fetch_optional(pool)
-        .await
-        ?;
+        .await?;
         let (url, title, license) = row.unwrap_or((None, None, None));
-        let display_title = title.clone().unwrap_or_else(|| pkg_name.clone());
+        let display_title = title.clone().unwrap_or_else(|| format!("dir#{}", dir_id));
         lines.push(format!(
             "- {} [{}] {}",
             display_title,
@@ -196,7 +212,7 @@ async fn build_credits(
             url.as_deref().unwrap_or(""),
         ));
         json_arr.push(serde_json::json!({
-            "package": pkg_name,
+            "directory_id": dir_id,
             "title": display_title,
             "license": license,
             "source_url": url,
@@ -211,8 +227,7 @@ async fn write_credits(proj_dir: &Path, pool: &SqlitePool, items: &[ExportItem])
     fs::write(
         proj_dir.join("CREDITS.json"),
         serde_json::to_string_pretty(&json).unwrap(),
-    )
-    ?;
+    )?;
     Ok(())
 }
 
@@ -225,8 +240,7 @@ fn write_manifest(proj_dir: &Path, project_name: &str, format: &str, items: &[Ex
         "total_bytes": items.iter().map(|i| i.bytes as u64).sum::<u64>(),
         "files": items.iter().map(|i| serde_json::json!({
             "export_path": i.dest_rel,
-            "category": i.category,
-            "package": i.package,
+            "directory": i.directory,
             "source_path": i.src.to_string_lossy().replace("\\", "/"),
             "name": i.name,
             "ext": i.ext,
@@ -237,8 +251,7 @@ fn write_manifest(proj_dir: &Path, project_name: &str, format: &str, items: &[Ex
     fs::write(
         proj_dir.join("manifest.json"),
         serde_json::to_string_pretty(&manifest).unwrap(),
-    )
-    ?;
+    )?;
     Ok(())
 }
 
@@ -253,8 +266,7 @@ async fn write_credits_to_zip(
     writer.write_all(txt.as_bytes())?;
     writer.start_file("CREDITS.json", opts)?;
     writer
-        .write_all(serde_json::to_string_pretty(&json).unwrap().as_bytes())
-        ?;
+        .write_all(serde_json::to_string_pretty(&json).unwrap().as_bytes())?;
     Ok(())
 }
 
@@ -272,8 +284,7 @@ fn write_manifest_to_zip(
         "total_bytes": items.iter().map(|i| i.bytes as u64).sum::<u64>(),
         "files": items.iter().map(|i| serde_json::json!({
             "export_path": i.dest_rel,
-            "category": i.category,
-            "package": i.package,
+            "directory": i.directory,
             "source_path": i.src.to_string_lossy().replace("\\", "/"),
             "name": i.name,
             "ext": i.ext,
@@ -284,8 +295,7 @@ fn write_manifest_to_zip(
     let opts = SimpleFileOptions::default();
     writer.start_file("manifest.json", opts)?;
     writer
-        .write_all(serde_json::to_string_pretty(&manifest).unwrap().as_bytes())
-        ?;
+        .write_all(serde_json::to_string_pretty(&manifest).unwrap().as_bytes())?;
     Ok(())
 }
 
@@ -318,4 +328,3 @@ mod tests {
         assert_eq!(sanitize("树/叶:2"), "树_叶_2");
     }
 }
-

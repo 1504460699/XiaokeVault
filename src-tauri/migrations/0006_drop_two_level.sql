@@ -1,0 +1,14 @@
+-- 0006: 移除两级视图（categories/packages），统一为目录树架构
+--
+-- 本文件仅为文档说明，实际迁移逻辑在 src/db.rs 的 drop_two_level_schema() 中实现
+-- （因为 SQLite 不支持 ALTER TABLE 改约束，需重建表 + 删表 + 数据清理，必须用 Rust 事务控制）。
+--
+-- 迁移内容：
+-- 1. directories 表新增版权列：source_url / source_title / license / license_source
+-- 2. files 表重建：去掉 package_id 列与外键，directory_id 改 NOT NULL，UNIQUE(directory_id, rel_path)
+-- 3. 清理数据：DELETE FROM files WHERE directory_id IS NULL（约 4.2 万条旧两级文件）
+-- 4. selections 表重建：去掉 package_id 列，加 directory_id 列，scope 改为 ('directory','file','exclude')
+-- 5. DROP TABLE: categories / packages / duplicate_groups / duplicate_members / dismissed_pairs
+--
+-- 幂等：schema_migrations 标记 version=6
+-- 安全：迁移前 index.db -> index.db.bak 备份

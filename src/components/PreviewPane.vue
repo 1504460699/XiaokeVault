@@ -2,7 +2,6 @@
 import { computed, defineAsyncComponent } from "vue";
 import { storeToRefs } from "pinia";
 import { useI18n } from "vue-i18n";
-import { useLibraryStore } from "../stores/libraryStore";
 import { useTreeStore } from "../stores/treeStore";
 import { useSelectionStore } from "../stores/selectionStore";
 import { viewerForKind } from "../utils/viewer";
@@ -18,25 +17,18 @@ import AudioPlayer from "./preview/AudioPlayer.vue";
 import FontPreview from "./preview/FontPreview.vue";
 import SourcePlaceholder from "./preview/SourcePlaceholder.vue";
 
-const lib = useLibraryStore();
 const tree = useTreeStore();
 const sel = useSelectionStore();
-const { files: libFiles } = storeToRefs(lib);
 const { files: treeFiles } = storeToRefs(tree);
 const { previewFileId } = storeToRefs(sel);
 
 defineEmits<{ export: [] }>();
 
-// 当前预览文件：树视图从 treeStore.files 找，两级视图从 libraryStore.files 找
-// （两者都可能因为搜索定位被填充，故都查找）
+// 当前预览文件：从 treeStore.files 查找
 const file = computed(() => {
   const id = previewFileId.value;
   if (id == null) return null;
-  return (
-    libFiles.value.find((f) => f.id === id) ??
-    treeFiles.value.find((f) => f.id === id) ??
-    null
-  );
+  return treeFiles.value.find((f) => f.id === id) ?? null;
 });
 
 const viewer = computed(() =>
