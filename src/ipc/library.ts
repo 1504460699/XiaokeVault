@@ -23,6 +23,9 @@ export const ipc = {
   async scanLibraryFull(libId: number): Promise<ScanReport> {
     return invoke<ScanReport>("scan_library_full", { libId });
   },
+  async needsRescan(libId: number): Promise<boolean> {
+    return invoke<boolean>("needs_rescan", { libId });
+  },
   async getCategories(libId: number): Promise<Category[]> {
     return invoke<Category[]>("get_categories", { libId });
   },

@@ -75,22 +75,38 @@ pub async fn scan_into(
                 registry.kind_for(&f.ext)
             };
             let existed = existing.contains(&f.rel_path);
-            sqlx::query(
-                "INSERT INTO files(package_id,rel_path,name,ext,kind,bytes,modified_at,deleted)
-                 VALUES(?,?,?,?,?,?,?,0)
-                 ON CONFLICT(package_id,rel_path) DO UPDATE SET
-                   name=excluded.name, ext=excluded.ext, kind=excluded.kind,
-                   bytes=excluded.bytes, modified_at=excluded.modified_at, deleted=0",
-            )
-            .bind(pkg_id)
-            .bind(&f.rel_path)
-            .bind(&f.name)
-            .bind(&f.ext)
-            .bind(kind)
-            .bind(f.bytes as i64)
-            .bind(f.modified_at)
-            .execute(&mut *tx)
-            .await?;
+            // 新约束 UNIQUE(directory_id, rel_path)：两级文件 directory_id=NULL，
+            // NULL 不触发 ON CONFLICT，故用显式 existed 检查区分 INSERT/UPDATE。
+            // directory_id 保持 NULL（两级文件不关联目录）。
+            if existed {
+                sqlx::query(
+                    "UPDATE files SET name=?, ext=?, kind=?, bytes=?, modified_at=?, deleted=0
+                     WHERE package_id=? AND rel_path=? AND directory_id IS NULL",
+                )
+                .bind(&f.name)
+                .bind(&f.ext)
+                .bind(kind)
+                .bind(f.bytes as i64)
+                .bind(f.modified_at)
+                .bind(pkg_id)
+                .bind(&f.rel_path)
+                .execute(&mut *tx)
+                .await?;
+            } else {
+                sqlx::query(
+                    "INSERT INTO files(package_id,rel_path,name,ext,kind,bytes,modified_at,deleted)
+                     VALUES(?,?,?,?,?,?,?,0)",
+                )
+                .bind(pkg_id)
+                .bind(&f.rel_path)
+                .bind(&f.name)
+                .bind(&f.ext)
+                .bind(kind)
+                .bind(f.bytes as i64)
+                .bind(f.modified_at)
+                .execute(&mut *tx)
+                .await?;
+            }
             if existed {
                 updated += 1;
             } else {
@@ -255,6 +271,15 @@ pub async fn scan_tree_into(
     // === 2. 写 files（带 directory_id）+ 累计 directory 的 file_count/bytes ===
     let mut dir_stats: HashMap<String, (i64, i64)> = HashMap::new(); // dir_path -> (count, bytes)
 
+    // 预取所有已存在的树文件 (directory_id, rel_path)，用于区分 new/updated。
+    // 树文件 package_id=0，directory_id 有值。
+    let existing_tree_files: HashSet<(Option<i64>, String)> =
+        sqlx::query_as("SELECT directory_id, rel_path FROM files WHERE package_id=0")
+            .fetch_all(&mut *tx)
+            .await?
+            .into_iter()
+            .collect();
+
     for f in &result.files {
         let kind = if registry.kind_for(&f.ext) == "other" && !f.ext.is_empty() {
             *unknown.entry(f.ext.clone()).or_insert(0) += 1;
@@ -264,23 +289,14 @@ pub async fn scan_tree_into(
         };
         let dir_id = path_to_id.get(&f.dir_path).copied();
 
-        // 查是否已存在（用 directory_id + rel_path 判断）
-        let existed: Option<(i64,)> =
-            sqlx::query_as("SELECT 1 FROM files WHERE directory_id=? AND rel_path=? LIMIT 1")
-                .bind(dir_id)
-                .bind(&f.rel_path)
-                .fetch_optional(&mut *tx)
-                .await?;
-        let existed = existed.is_some();
-
-        // 注意：旧表的 UNIQUE(package_id, rel_path) 在树视图下不适用，
-        // 这里用 package_id=0 表示树视图文件，rel_path 相对目录
+        // 新约束 UNIQUE(directory_id, rel_path)：每目录内 rel_path 唯一，
+        // 不同目录同名文件不再互相覆盖。
         sqlx::query(
             "INSERT INTO files(directory_id,package_id,rel_path,name,ext,kind,bytes,modified_at,deleted)
              VALUES(?,?,?,?,?,?,?,?,0)
-             ON CONFLICT(package_id,rel_path) DO UPDATE SET
-               directory_id=excluded.directory_id, name=excluded.name, ext=excluded.ext,
-               kind=excluded.kind, bytes=excluded.bytes, modified_at=excluded.modified_at, deleted=0",
+             ON CONFLICT(directory_id, rel_path) DO UPDATE SET
+               name=excluded.name, ext=excluded.ext, kind=excluded.kind,
+               bytes=excluded.bytes, modified_at=excluded.modified_at, deleted=0",
         )
         .bind(dir_id)
         .bind(0i64) // package_id=0 表示树视图文件（不关联 packages）
@@ -293,6 +309,7 @@ pub async fn scan_tree_into(
         .execute(&mut *tx)
         .await?;
 
+        let existed = existing_tree_files.contains(&(dir_id, f.rel_path.clone()));
         if existed {
             updated += 1;
         } else {

@@ -176,6 +176,26 @@ pub async fn list_libraries(pool: State<'_, SqlitePool>) -> Result<Vec<Library>,
         .collect())
 }
 
+/// 检测是否需要重扫（迁移后树文件被清空，但 directories 还在）。
+/// 启动时调用：若 directories 有记录但 files 表无 package_id=0 的树文件，返回 true。
+#[tauri::command]
+pub async fn needs_rescan(
+    lib_id: i64,
+    pool: State<'_, SqlitePool>,
+) -> Result<bool, AppError> {
+    let dir_count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM directories WHERE library_id=?")
+            .bind(lib_id)
+            .fetch_one(&*pool)
+            .await?;
+    let tree_files: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM files WHERE package_id=0 AND deleted=0")
+            .fetch_one(&*pool)
+            .await?;
+    // 有目录结构但没有树文件 → 迁移后需要重扫
+    Ok(dir_count.0 > 0 && tree_files.0 == 0)
+}
+
 #[tauri::command]
 pub async fn scan_library_full(
     lib_id: i64,

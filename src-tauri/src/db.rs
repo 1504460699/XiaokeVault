@@ -1,5 +1,5 @@
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
-use sqlx::SqlitePool;
+use sqlx::{Connection, SqlitePool};
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -95,6 +95,113 @@ pub async fn migrate(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         .await?;
     // files.directory_id：SQLite 不支持 ADD COLUMN IF NOT EXISTS，先查列是否存在再加
     ensure_column(pool, "files", "directory_id", "INTEGER REFERENCES directories(id) ON DELETE CASCADE").await?;
+    // 0005：修复 files 表唯一约束（package_id,rel_path)→(directory_id,rel_path)
+    // 解决树扫描同名文件互相覆盖导致目录显示空的问题
+    fix_files_unique_constraint(pool).await?;
+    Ok(())
+}
+
+/// 0005 迁移：修复 files 表唯一约束。
+///
+/// 旧约束 UNIQUE(package_id, rel_path)：树扫描所有文件 package_id=0、
+/// rel_path 相对目录，导致不同目录同名文件互相覆盖。
+/// 新约束 UNIQUE(directory_id, rel_path)：每目录内唯一；两级文件 directory_id=NULL
+/// 不冲突（SQLite NULL 语义），两级扫描改用显式去重。
+///
+/// 幂等：若约束已是 (directory_id, rel_path) 则跳过。
+/// 风险控制：迁移前复制 index.db → index.db.bak。
+async fn fix_files_unique_constraint(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    // 用 schema_migrations 标记表实现幂等，避免依赖脆弱的 LIKE 匹配
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS schema_migrations (
+            version INTEGER PRIMARY KEY,
+            applied_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+        )",
+    )
+    .execute(pool)
+    .await?;
+    let applied: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM schema_migrations WHERE version=5",
+    )
+    .fetch_one(pool)
+    .await?;
+    if applied > 0 {
+        log::debug!("[db] 0005 迁移：已应用，跳过");
+        return Ok(());
+    }
+
+    log::info!("[db] 0005 迁移：重建 files 表，修正唯一约束");
+    let path = db_path();
+    let backup = path.with_extension("db.bak");
+    if let Err(e) = std::fs::copy(&path, &backup) {
+        log::warn!("[db] 0005 备份失败（继续迁移）：{e}");
+    } else {
+        log::info!("[db] 0005 已备份数据库 → {}", backup.display());
+    }
+
+    let mut conn = pool.acquire().await?;
+
+    // 整个重建在一个事务里，失败则回滚（备份文件兜底）
+    let mut tx = conn.begin().await?;
+
+    // 清理：删除所有 package_id=0 的旧脏树文件（被覆盖的同名文件）
+    let dirty: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM files WHERE package_id=0")
+            .fetch_one(&mut *tx)
+            .await?;
+    log::info!("[db] 0005 清理旧脏树文件（package_id=0）共 {} 条", dirty);
+    sqlx::query("DELETE FROM files WHERE package_id=0")
+        .execute(&mut *tx)
+        .await?;
+
+    // 重建表：新约束 UNIQUE(directory_id, rel_path)
+    sqlx::query(
+        "CREATE TABLE files_new (
+            id           INTEGER PRIMARY KEY,
+            package_id   INTEGER NOT NULL REFERENCES packages(id) ON DELETE CASCADE,
+            rel_path     TEXT NOT NULL,
+            name         TEXT NOT NULL,
+            ext          TEXT NOT NULL,
+            kind         TEXT NOT NULL,
+            bytes        INTEGER NOT NULL,
+            width        INTEGER,
+            height       INTEGER,
+            frame_count  INTEGER,
+            modified_at  INTEGER NOT NULL,
+            content_hash TEXT,
+            deleted      INTEGER DEFAULT 0,
+            directory_id INTEGER REFERENCES directories(id) ON DELETE CASCADE,
+            UNIQUE(directory_id, rel_path)
+        )",
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    // 迁移数据：旧两级文件（package_id≠0, directory_id=NULL）原样保留
+    sqlx::query(
+        "INSERT INTO files_new
+            (id, package_id, rel_path, name, ext, kind, bytes, width, height,
+             frame_count, modified_at, content_hash, deleted, directory_id)
+         SELECT id, package_id, rel_path, name, ext, kind, bytes, width, height,
+                frame_count, modified_at, content_hash, deleted, directory_id
+         FROM files",
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    sqlx::query("DROP TABLE files").execute(&mut *tx).await?;
+    sqlx::query("ALTER TABLE files_new RENAME TO files").execute(&mut *tx).await?;
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_files_directory_id ON files(directory_id)")
+        .execute(&mut *tx)
+        .await?;
+
+    tx.commit().await?;
+    // 记录迁移已应用（幂等标记）
+    sqlx::query("INSERT OR IGNORE INTO schema_migrations(version) VALUES (5)")
+        .execute(pool)
+        .await?;
+    log::info!("[db] 0005 迁移完成：files 表已重建，约束 UNIQUE(directory_id, rel_path)");
+    log::info!("[db] 0005 提示：应用启动后需重新扫描树以填充 directory_id");
     Ok(())
 }
 

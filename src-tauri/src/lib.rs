@@ -22,15 +22,36 @@ fn greet(name: &str) -> String {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // 日志目标：debug 构建写文件 + 控制台（开发排查用）；release 仅控制台 Warning+。
+    // logs/ 目录在 .gitignore 忽略，不污染 git/打包。
+    let log_targets: Vec<Target> = {
+        let mut v = vec![Target::new(TargetKind::Stdout)];
+        #[cfg(debug_assertions)]
+        {
+            // debug：额外输出到项目下 logs/ 文件，级别 Debug
+            let mut folder = Target::new(TargetKind::Folder {
+                path: std::env::current_dir().unwrap_or_default(),
+                file_name: Some("app.log".into()),
+            });
+            // Folder target 默认追加轮转，够用
+            folder = folder.filter(|m| m.level() <= log::LevelFilter::Debug);
+            v.push(folder);
+        }
+        v
+    };
+
+    let mut log_builder = tauri_plugin_log::Builder::new().targets(log_targets);
+    #[cfg(debug_assertions)]
+    {
+        log_builder = log_builder.level(log::LevelFilter::Debug);
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        log_builder = log_builder.level(log::LevelFilter::Warn);
+    }
+
     tauri::Builder::default()
-        .plugin(
-            tauri_plugin_log::Builder::new()
-                .targets([
-                    Target::new(TargetKind::Stdout),
-                    Target::new(TargetKind::Webview),
-                ])
-                .build(),
-        )
+        .plugin(log_builder.build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
@@ -77,6 +98,7 @@ pub fn run() {
             library::add_library,
             library::list_libraries,
             library::scan_library_full,
+            library::needs_rescan,
             library::get_categories,
             library::get_packages,
             library::get_package_files,

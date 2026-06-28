@@ -13,6 +13,7 @@ import ExportDialog from "./components/ExportDialog.vue";
 import DedupPanel from "./components/DedupPanel.vue";
 import TypeSettings from "./components/TypeSettings.vue";
 import Toast from "./components/Toast.vue";
+import { ipc } from "./ipc/library";
 import { useLibraryStore } from "./stores/libraryStore";
 import { useSelectionStore } from "./stores/selectionStore";
 import { useSearchStore } from "./stores/searchStore";
@@ -43,6 +44,18 @@ onMounted(async () => {
     await store.loadCategories();
     // 加载目录树数据
     await treeStore.loadTree(store.currentLibId);
+
+    // 迁移后自动重扫：0005 迁移清空了树文件，需重新扫描填充 directory_id。
+    // 检测到需要重扫时静默触发（用户会看到扫描进度，但无需手动操作）。
+    try {
+      const needRescan = await ipc.needsRescan(store.currentLibId);
+      if (needRescan) {
+        console.info("[迁移] 检测到需要重扫，自动触发扫描以重建索引…");
+        await store.scanCurrent();
+      }
+    } catch (e) {
+      console.warn("[迁移] 自动重扫检查失败：", e);
+    }
   }
   await selStore.loadProjects();
   if (store.currentCategoryId !== null) {

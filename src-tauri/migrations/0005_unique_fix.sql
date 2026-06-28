@@ -1,0 +1,16 @@
+-- 0005: 修复 files 表唯一约束冲突
+--
+-- 根因：UNIQUE(package_id, rel_path) 下，树扫描所有文件 package_id=0、
+-- rel_path 是相对目录的短路径，导致不同目录的同名文件（preview.png 等）
+-- 互相覆盖，只有最后一个 directory_id 保留，888 个目录显示有大小但中间空。
+--
+-- 修复：唯一约束改为 UNIQUE(directory_id, rel_path)。
+--   - 树扫描文件（directory_id 有值）：每目录内 rel_path 唯一 ✓
+--   - 两级扫描文件（directory_id=NULL）：SQLite 中 NULL 在 UNIQUE 不冲突，
+--     两级扫描改用显式去重（indexer.rs 已用 HashSet existing 检查）
+--
+-- SQLite 不支持直接改约束，需重建表。备份 + 重建逻辑在 Rust migrate_files_unique()
+-- 里实现（迁移前复制 index.db → index.db.bak）。纯 SQL 部分在此声明，
+-- 实际执行见 db.rs 的 fix_files_unique_constraint()。
+--
+-- 本文件保留为迁移历史标记，实际表重建由 Rust 完成（需事务 + 错误回滚）。
