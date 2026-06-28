@@ -1,3 +1,4 @@
+mod app_log;
 mod asset_types;
 mod db;
 mod error;
@@ -20,44 +21,41 @@ fn greet(name: &str) -> String {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // 崩溃日志：在一切初始化之前装 panic hook，
-    // 把任何 panic（包括 setup 阶段的 expect）写到 crash.log，便于定位启动闪退。
-    install_panic_hook();
+    // 自定义文件日志：写到 %APPDATA%/com.xiaoke.vault/app.log（固定位置，与 DB 同目录）。
+    // panic hook 确保任何崩溃也能记录。
+    app_log::install_panic_hook();
+    alog_info!("app", "应用启动");
 
-    // 日志目标：debug 构建写文件 + 控制台（开发排查用）；release 仅控制台 Warning+。
-    // logs/ 目录在 .gitignore 忽略，不污染 git/打包。
-    let log_targets: Vec<Target> = {
-        let mut v = vec![Target::new(TargetKind::Stdout)];
-        #[cfg(debug_assertions)]
-        {
-            let folder = Target::new(TargetKind::Folder {
-                path: std::env::current_dir().unwrap_or_default(),
-                file_name: Some("app.log".into()),
-            })
-            .filter(|m| m.level() <= log::LevelFilter::Debug);
-            v.push(folder);
-        }
-        v
-    };
-
-    let mut log_builder = tauri_plugin_log::Builder::new().targets(log_targets);
-    #[cfg(debug_assertions)]
-    {
-        log_builder = log_builder.level(log::LevelFilter::Debug);
-    }
-    #[cfg(not(debug_assertions))]
-    {
-        log_builder = log_builder.level(log::LevelFilter::Warn);
-    }
+    // tauri_plugin_log 仅保留 stdout（控制台），文件日志由 app_log 负责
+    let log_targets: Vec<Target> = vec![Target::new(TargetKind::Stdout)];
+    let log_builder = tauri_plugin_log::Builder::new()
+        .targets(log_targets)
+        .level(log::LevelFilter::Warn);
 
     tauri::Builder::default()
         .plugin(log_builder.build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            alog_info!("app", "setup 开始：连接数据库 + 迁移");
             let pool = tauri::async_runtime::block_on(async {
-                let pool = db::connect().await.expect("db connect");
-                db::migrate(&pool).await.expect("db migrate");
+                let pool = match db::connect().await {
+                    Ok(p) => {
+                        alog_info!("db", "数据库连接成功");
+                        p
+                    }
+                    Err(e) => {
+                        alog_error!("db", "数据库连接失败：{e}");
+                        panic!("db connect: {e}");
+                    }
+                };
+                match db::migrate(&pool).await {
+                    Ok(_) => alog_info!("db", "迁移完成"),
+                    Err(e) => {
+                        alog_error!("db", "迁移失败：{e}");
+                        panic!("db migrate: {e}");
+                    }
+                }
                 pool
             });
             // 应用启动时，若已有库则启动文件监听（自动增量扫描）
@@ -70,6 +68,7 @@ pub fn run() {
                         .unwrap_or((0, String::new()))
                 });
                 if res.0 != 0 {
+                    alog_info!("watcher", "发现已有库 id={}，启动文件监听", res.0);
                     match watcher::start_watcher(
                         app_handle,
                         pool.clone(),
@@ -80,17 +79,18 @@ pub fn run() {
                             // 关键：必须 manage 保活整个应用生命周期，
                             // 否则 RecommendedWatcher 被 drop 后 OS 级文件监听立即停止。
                             app.manage(w);
-                            log::info!("[watcher] 已启动，监听目录：{}", res.1);
+                            alog_info!("watcher", "已启动，监听目录：{}", res.1);
                         }
                         Err(e) => {
-                            log::error!("[watcher] 启动失败：{e}");
+                            alog_error!("watcher", "启动失败：{e}");
                         }
                     }
                 } else {
-                    log::info!("[watcher] 未发现已有库，跳过自动监听");
+                    alog_info!("watcher", "未发现已有库，跳过自动监听");
                 }
             }
             app.manage(pool);
+            alog_info!("app", "setup 完成，应用就绪");
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -121,31 +121,5 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
-}
-
-/// 安装全局 panic hook：把崩溃信息写到 %APPDATA%/com.xiaoke.vault/crash.log，
-/// 便于诊断启动闪退（绕过 tauri_plugin_log，确保最早期 panic 也能记录）。
-fn install_panic_hook() {
-    let default_hook = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |info| {
-        // 写崩溃日志到应用数据目录
-        if let Some(data) = dirs::data_dir() {
-            let log_path = data.join("com.xiaoke.vault").join("crash.log");
-            let _ = std::fs::create_dir_all(log_path.parent().unwrap_or(std::path::Path::new(".")));
-            let msg = format!(
-                "[{}] PANIC: {}\nbacktrace:\n{}\n\n",
-                chrono::Utc::now().format("%Y-%m-%d %H:%M:%S"),
-                info,
-                std::backtrace::Backtrace::force_capture()
-            );
-            // 追加写，保留历史崩溃记录
-            let _ = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&log_path)
-                .and_then(|mut f| std::io::Write::write_all(&mut f, msg.as_bytes()));
-        }
-        // 继续调用默认 hook（输出到 stderr）
-        default_hook(info);
-    }));
+    alog_info!("app", "应用退出");
 }

@@ -25,11 +25,24 @@ pub async fn scan_tree_into(
     root: &Path,
 ) -> Result<ScanReport, sqlx::Error> {
     let start = std::time::Instant::now();
+    crate::alog_info!("scan", "scan_tree_into：开始，lib_id={} root={}", lib_id, root.display());
+
+    crate::alog_debug!("scan", "步骤1/5：加载资源类型 Registry");
     let registry = Registry::load(pool).await?;
+    crate::alog_debug!("scan", "Registry 加载完成");
+
     let mut unknown: HashMap<String, u64> = HashMap::new();
+    crate::alog_debug!("scan", "步骤2/5：扫描磁盘目录树");
     let result = tree_scanner::scan_library_tree(root);
+    crate::alog_info!(
+        "scan",
+        "磁盘扫描完成：{} 个目录，{} 个文件",
+        result.dirs.len(),
+        result.files.len()
+    );
 
     let mut conn = pool.acquire().await?;
+    crate::alog_debug!("scan", "步骤3/5：获取数据库连接，开启事务");
 
     let mut new = 0u64;
     let mut updated = 0u64;
@@ -81,6 +94,7 @@ pub async fn scan_tree_into(
         path_to_id.insert(d.path.clone(), id);
         seen_dir_paths.insert(d.path.clone());
     }
+    crate::alog_debug!("scan", "写入 directories 完成：{} 个目录", path_to_id.len());
 
     // === 2. 写 files（带 directory_id）+ 累计 directory 的 file_count/bytes ===
     let mut dir_stats: HashMap<String, (i64, i64)> = HashMap::new(); // dir_path -> (count, bytes)
@@ -93,6 +107,7 @@ pub async fn scan_tree_into(
             .into_iter()
             .collect();
 
+    let mut skipped_no_dir = 0u64;
     for f in &result.files {
         let kind = if registry.kind_for(&f.ext) == "other" && !f.ext.is_empty() {
             *unknown.entry(f.ext.clone()).or_insert(0) += 1;
@@ -101,6 +116,22 @@ pub async fn scan_tree_into(
             registry.kind_for(&f.ext)
         };
         let dir_id = path_to_id.get(&f.dir_path).copied();
+
+        // 防御：若文件所在目录未在 path_to_id 中（理论上不该发生），
+        // 跳过该文件并记录，避免 INSERT NULL 到 NOT NULL 列导致整个扫描失败。
+        // 常见原因：文件在库根下、或目录扫描顺序导致子目录先于父目录处理。
+        let Some(dir_id) = dir_id else {
+            skipped_no_dir += 1;
+            if skipped_no_dir <= 5 {
+                crate::alog_warn!(
+                    "scan",
+                    "跳过文件（找不到所属目录）：dir_path={:?} rel_path={:?}",
+                    f.dir_path,
+                    f.rel_path
+                );
+            }
+            continue;
+        };
 
         // 约束 UNIQUE(directory_id, rel_path)：每目录内 rel_path 唯一，
         // 不同目录同名文件不会互相覆盖。
@@ -121,7 +152,7 @@ pub async fn scan_tree_into(
         .execute(&mut *tx)
         .await?;
 
-        let existed = existing_files.contains(&(dir_id, f.rel_path.clone()));
+        let existed = existing_files.contains(&(Some(dir_id), f.rel_path.clone()));
         if existed {
             updated += 1;
         } else {
@@ -132,6 +163,16 @@ pub async fn scan_tree_into(
         e.0 += 1;
         e.1 += f.bytes as i64;
     }
+    if skipped_no_dir > 0 {
+        crate::alog_warn!("scan", "共 {} 个文件因找不到所属目录被跳过", skipped_no_dir);
+    }
+    crate::alog_debug!(
+        "scan",
+        "写入 files 完成：new={} updated={} skipped={}",
+        new,
+        updated,
+        skipped_no_dir
+    );
 
     // === 3. 更新 directories 的 file_count/total_bytes ===
     for (dir_path, (count, bytes)) in &dir_stats {
@@ -155,6 +196,7 @@ pub async fn scan_tree_into(
     }
 
     // === 4. 增量删除：磁盘已不存在的目录直接删（CASCADE 删其 files）===
+    crate::alog_debug!("scan", "步骤4/5：增量删除磁盘已不存在的目录");
     for old_path in existing_dir_paths.iter() {
         if !seen_dir_paths.contains(old_path) {
             sqlx::query("DELETE FROM directories WHERE library_id=? AND path=?")
@@ -166,7 +208,9 @@ pub async fn scan_tree_into(
         }
     }
 
+    crate::alog_debug!("scan", "步骤5/5：提交事务");
     tx.commit().await?;
+    crate::alog_info!("scan", "事务已提交，扫描入库完成");
 
     Ok(ScanReport {
         new,

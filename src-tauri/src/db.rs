@@ -81,26 +81,35 @@ pub async fn connect() -> Result<SqlitePool, sqlx::Error> {
 
 /// 执行初始建表迁移。
 pub async fn migrate(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    crate::alog_info!("db", "migrate 开始");
+    crate::alog_debug!("db", "执行 0001_init");
     sqlx::query(include_str!("../migrations/0001_init.sql"))
         .execute(pool)
         .await?;
+    crate::alog_debug!("db", "执行 0002_projects_selections");
     sqlx::query(include_str!("../migrations/0002_projects_selections.sql"))
         .execute(pool)
         .await?;
+    crate::alog_debug!("db", "执行 0003_dedup");
     sqlx::query(include_str!("../migrations/0003_dedup.sql"))
         .execute(pool)
         .await?;
+    crate::alog_debug!("db", "执行 0004_directories");
     sqlx::query(include_str!("../migrations/0004_directories.sql"))
         .execute(pool)
         .await?;
     // files.directory_id：SQLite 不支持 ADD COLUMN IF NOT EXISTS，先查列是否存在再加
+    crate::alog_debug!("db", "确保 files.directory_id 列");
     ensure_column(pool, "files", "directory_id", "INTEGER REFERENCES directories(id) ON DELETE CASCADE").await?;
     // 0005：修复 files 表唯一约束（package_id,rel_path)→(directory_id,rel_path)
     // 解决树扫描同名文件互相覆盖导致目录显示空的问题
+    crate::alog_debug!("db", "执行 0005 fix_files_unique_constraint");
     fix_files_unique_constraint(pool).await?;
     // 0006：移除两级视图，统一目录树架构
     // drop categories/packages/dedup 表，directories 加版权列，selections/files 重建，清理旧两级数据
+    crate::alog_debug!("db", "执行 0006 drop_two_level_schema");
     drop_two_level_schema(pool).await?;
+    crate::alog_info!("db", "migrate 全部完成");
     Ok(())
 }
 

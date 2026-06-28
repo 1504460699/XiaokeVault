@@ -168,24 +168,44 @@ pub async fn scan_library_full(
     lib_id: i64,
     pool: State<'_, SqlitePool>,
 ) -> Result<ScanReport, AppError> {
+    crate::alog_info!("scan", "scan_library_full 开始，lib_id={}", lib_id);
     let (root,): (String,) = sqlx::query_as("SELECT root_path FROM libraries WHERE id=?")
         .bind(lib_id)
         .fetch_one(&*pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            crate::alog_error!("scan", "查询 root_path 失败：{e}");
+            AppError::Database(e)
+        })?;
+    crate::alog_info!("scan", "库根目录：{}", root);
+
     // 统一的目录树扫描（写 directories + files 表）
     let report = indexer::scan_tree_into(&*pool, lib_id, &PathBuf::from(&root))
         .await
         .map_err(|e| {
-            // 详细记录扫描失败的真实原因，便于诊断
-            log::error!("[scan] scan_tree_into 失败：{e}");
+            crate::alog_error!("scan", "scan_tree_into 失败：{e}");
             AppError::Database(e)
         })?;
+    crate::alog_info!(
+        "scan",
+        "扫描完成：新增 {} / 更新 {} / 删除 {} / 总 {} / 耗时 {}ms",
+        report.new,
+        report.updated,
+        report.deleted,
+        report.total_files,
+        report.duration_ms
+    );
+
     let now = chrono::Utc::now().timestamp();
     sqlx::query("UPDATE libraries SET last_scan_at=? WHERE id=?")
         .bind(now)
         .bind(lib_id)
         .execute(&*pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            crate::alog_error!("scan", "UPDATE last_scan_at 失败：{e}");
+            AppError::Database(e)
+        })?;
     Ok(report)
 }
 
