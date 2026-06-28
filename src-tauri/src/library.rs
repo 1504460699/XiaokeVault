@@ -173,7 +173,13 @@ pub async fn scan_library_full(
         .fetch_one(&*pool)
         .await?;
     // 统一的目录树扫描（写 directories + files 表）
-    let report = indexer::scan_tree_into(&*pool, lib_id, &PathBuf::from(&root)).await?;
+    let report = indexer::scan_tree_into(&*pool, lib_id, &PathBuf::from(&root))
+        .await
+        .map_err(|e| {
+            // 详细记录扫描失败的真实原因，便于诊断
+            log::error!("[scan] scan_tree_into 失败：{e}");
+            AppError::Database(e)
+        })?;
     let now = chrono::Utc::now().timestamp();
     sqlx::query("UPDATE libraries SET last_scan_at=? WHERE id=?")
         .bind(now)

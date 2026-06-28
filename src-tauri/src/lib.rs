@@ -20,19 +20,21 @@ fn greet(name: &str) -> String {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // 崩溃日志：在一切初始化之前装 panic hook，
+    // 把任何 panic（包括 setup 阶段的 expect）写到 crash.log，便于定位启动闪退。
+    install_panic_hook();
+
     // 日志目标：debug 构建写文件 + 控制台（开发排查用）；release 仅控制台 Warning+。
     // logs/ 目录在 .gitignore 忽略，不污染 git/打包。
     let log_targets: Vec<Target> = {
         let mut v = vec![Target::new(TargetKind::Stdout)];
         #[cfg(debug_assertions)]
         {
-            // debug：额外输出到项目下 logs/ 文件，级别 Debug
-            let mut folder = Target::new(TargetKind::Folder {
+            let folder = Target::new(TargetKind::Folder {
                 path: std::env::current_dir().unwrap_or_default(),
                 file_name: Some("app.log".into()),
-            });
-            // Folder target 默认追加轮转，够用
-            folder = folder.filter(|m| m.level() <= log::LevelFilter::Debug);
+            })
+            .filter(|m| m.level() <= log::LevelFilter::Debug);
             v.push(folder);
         }
         v
@@ -119,4 +121,31 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/// 安装全局 panic hook：把崩溃信息写到 %APPDATA%/com.xiaoke.vault/crash.log，
+/// 便于诊断启动闪退（绕过 tauri_plugin_log，确保最早期 panic 也能记录）。
+fn install_panic_hook() {
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        // 写崩溃日志到应用数据目录
+        if let Some(data) = dirs::data_dir() {
+            let log_path = data.join("com.xiaoke.vault").join("crash.log");
+            let _ = std::fs::create_dir_all(log_path.parent().unwrap_or(std::path::Path::new(".")));
+            let msg = format!(
+                "[{}] PANIC: {}\nbacktrace:\n{}\n\n",
+                chrono::Utc::now().format("%Y-%m-%d %H:%M:%S"),
+                info,
+                std::backtrace::Backtrace::force_capture()
+            );
+            // 追加写，保留历史崩溃记录
+            let _ = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&log_path)
+                .and_then(|mut f| std::io::Write::write_all(&mut f, msg.as_bytes()));
+        }
+        // 继续调用默认 hook（输出到 stderr）
+        default_hook(info);
+    }));
 }

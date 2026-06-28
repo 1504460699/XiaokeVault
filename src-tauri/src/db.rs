@@ -246,14 +246,45 @@ async fn ensure_column(
 ///
 /// 幂等：schema_migrations version=6。安全：迁移前 index.db → index.db.bak。
 async fn drop_two_level_schema(pool: &SqlitePool) -> Result<(), sqlx::Error> {
-    // 幂等检查
+    // 幂等检查：version=6 已标记
     let applied: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM schema_migrations WHERE version=6",
     )
     .fetch_one(pool)
     .await?;
+
     if applied > 0 {
-        log::debug!("[db] 0006 迁移：已应用，跳过");
+        log::debug!("[db] 0006 迁移：已标记完成，校验残留表...");
+        // 关键修复：上一次迁移可能中途失败（事务回滚了 DROP 但 version 标记在事务外写入了）。
+        // 这里补完残留表的清理，DROP IF EXISTS 本身幂等。
+        let mut conn = pool.acquire().await?;
+        for table in [
+            "duplicate_members",
+            "duplicate_groups",
+            "dismissed_pairs",
+            "packages",
+            "categories",
+        ] {
+            let exists: (i64,) = sqlx::query_as(&format!(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='{}'",
+                table
+            ))
+            .fetch_one(&mut *conn)
+            .await?;
+            if exists.0 > 0 {
+                log::warn!("[db] 0006 检测到残留表 {}（上次迁移未完成），执行补救 DROP", table);
+                sqlx::query("PRAGMA foreign_keys=OFF")
+                    .execute(&mut *conn)
+                    .await?;
+                sqlx::query(&format!("DROP TABLE IF EXISTS {}", table))
+                    .execute(&mut *conn)
+                    .await?;
+            }
+        }
+        sqlx::query("PRAGMA foreign_keys=ON")
+            .execute(&mut *conn)
+            .await?;
+        log::info!("[db] 0006 残留表校验完成");
         return Ok(());
     }
 

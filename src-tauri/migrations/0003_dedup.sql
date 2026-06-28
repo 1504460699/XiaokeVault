@@ -1,25 +1,7 @@
-CREATE TABLE IF NOT EXISTS duplicate_groups (
-    id          INTEGER PRIMARY KEY,
-    reason      TEXT NOT NULL,       -- zip_extracted / likely_backup / hash
-    detail      TEXT,                -- 人类可读说明
-    hash        TEXT,                -- reason=hash 时填
-    created_at  INTEGER NOT NULL
-);
-CREATE TABLE IF NOT EXISTS duplicate_members (
-    id          INTEGER PRIMARY KEY,
-    group_id    INTEGER NOT NULL REFERENCES duplicate_groups(id) ON DELETE CASCADE,
-    file_id     INTEGER REFERENCES files(id) ON DELETE CASCADE,
-    package_id  INTEGER REFERENCES packages(id) ON DELETE CASCADE,
-    role        TEXT NOT NULL DEFAULT 'remove',  -- keep / remove
-    UNIQUE(group_id, file_id, package_id)
-);
-CREATE INDEX IF NOT EXISTS idx_dup_members_group ON duplicate_members(group_id);
-
--- 人工已确认（忽略/保留）的包对，重新检测时跳过
-CREATE TABLE IF NOT EXISTS dismissed_pairs (
-    id           INTEGER PRIMARY KEY,
-    package_a    INTEGER NOT NULL,
-    package_b    INTEGER NOT NULL,
-    created_at   INTEGER NOT NULL,
-    UNIQUE(package_a, package_b)
-);
+-- 0003: 去重功能表（已废弃）
+--
+-- 去重功能随两级视图一并移除（见 0006 迁移），相关表 categories/packages/dedup 全部删除。
+-- 原建表语句引用了 packages 表的外键，packages 删除后无法再 CREATE，故此文件保留为空。
+-- 历史 duplicate_groups/duplicate_members/dismissed_pairs 表由 0006 迁移负责 DROP。
+--
+-- 本文件仅作迁移顺序占位，不执行任何 DDL。
